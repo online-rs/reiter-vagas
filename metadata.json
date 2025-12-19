@@ -1,0 +1,5 @@
+{
+  "name": "REITERLOG - Gestão de Vagas",
+  "description": "Sistema interno para gerenciamento, abertura e fechamento de vagas da transportadora REITERLOG, com controle de prazos e recrutadores.",
+  "requestFramePermissions": []
+}
