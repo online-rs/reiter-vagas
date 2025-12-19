@@ -5,8 +5,9 @@ import { Vaga, User } from '../types';
 import { 
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
-  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash
+  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
 import CloseVagaModal from './CloseVagaModal';
 import VagaDetailsModal from './VagaDetailsModal';
@@ -15,11 +16,12 @@ interface DashboardProps {
   user: User;
   onLogout: () => void;
   onNavigateToUsers: () => void;
+  onNavigateToUnits: () => void;
 }
 
 type SortKey = keyof Vaga | 'DAYS_OPEN';
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewVagaModalOpen, setIsNewVagaModalOpen] = useState(false);
@@ -42,12 +44,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     try {
       let query = supabase.from('vagas').select('*');
       
-      if (filterStatus === 'open') {
-        query = query.is('FECHAMENTO', null);
-      } else if (filterStatus === 'closed') {
-        query = query.not('FECHAMENTO', 'is', null);
-      }
-
       if (!isAllAccess) {
         if (user.unidades && user.unidades.length > 0) {
           query = query.in('UNIDADE', user.unidades);
@@ -74,11 +70,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, user.unidades, isAllAccess, selectedVagaForDetails?.id]);
+  }, [user.unidades, isAllAccess, selectedVagaForDetails?.id]);
 
   useEffect(() => {
     fetchVagas();
-  }, [filterStatus, user.unidades, isAllAccess]); // Removido selectedVagaForDetails do array para evitar loop infinito
+  }, [user.unidades, isAllAccess]);
 
   const calculateDaysOpen = (abertura: string, fechamento?: string | null) => {
     const start = new Date(abertura);
@@ -87,9 +83,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const availableUnits = useMemo(() => {
-    const units = Array.from(new Set(vagas.map(v => v.UNIDADE))).sort();
-    return units;
+  // Cálculo das unidades e suas quantidades de vagas EM ABERTO
+  const unitStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    
+    // Primeiro, identificamos todas as unidades presentes (mesmo as que só têm fechadas)
+    vagas.forEach(v => {
+      if (!stats[v.UNIDADE]) stats[v.UNIDADE] = 0;
+      // Incrementamos o contador apenas se a vaga estiver em aberto
+      if (!v.FECHAMENTO) {
+        stats[v.UNIDADE]++;
+      }
+    });
+    
+    return Object.entries(stats).sort(([a], [b]) => a.localeCompare(b));
   }, [vagas]);
 
   const toggleUnit = (unit: string) => {
@@ -106,8 +113,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     setSortConfig({ key, direction });
   };
 
+  // Contadores para os filtros de status
+  const counts = useMemo(() => {
+    return {
+      all: vagas.length,
+      open: vagas.filter(v => !v.FECHAMENTO).length,
+      closed: vagas.filter(v => !!v.FECHAMENTO).length
+    };
+  }, [vagas]);
+
   const processedVagas = useMemo(() => {
     let filtered = vagas.filter(v => {
+      // Aplicar filtro de status
+      if (filterStatus === 'open' && v.FECHAMENTO) return false;
+      if (filterStatus === 'closed' && !v.FECHAMENTO) return false;
+
       const s = searchTerm.toLowerCase();
       const matchesSearch = (
         v.CARGO?.toLowerCase().includes(s) ||
@@ -145,11 +165,66 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     }
 
     return filtered;
-  }, [vagas, searchTerm, selectedUnits, sortConfig]);
+  }, [vagas, searchTerm, selectedUnits, sortConfig, filterStatus]);
 
   const renderSortIcon = (key: SortKey) => {
     if (!sortConfig || sortConfig.key !== key) return <ChevronsUpDown size={12} className="ml-1 opacity-30" />;
     return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="ml-1 text-[#e31e24]" /> : <ArrowDown size={12} className="ml-1 text-[#e31e24]" />;
+  };
+
+  const formatExcelDate = (dateStr?: string | null) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const handleExport = () => {
+    if (processedVagas.length === 0) return;
+
+    // Cabeçalhos amigáveis para o Excel
+    const headers = [
+      'ID', 'DATA_CRIACAO', 'NUMERO_VAGA', 'DATA_ABERTURA', 'UNIDADE', 'SETOR', 
+      'TIPO_CARGO', 'CARGO', 'TIPO', 'MOTIVO', 'NOME_SUBSTITUIDO', 'TURNO', 
+      'GESTOR', 'DIAS_ABERTO', 'DATA_FECHAMENTO', 'NOME_CONTRATADO', 'CAPTACAO', 
+      'RECRUTADOR', 'OBSERVACOES', 'USUARIO_CRIADOR', 'USUARIO_FECHADOR'
+    ];
+
+    // Mapeamento dos dados
+    const excelData = processedVagas.map(v => ({
+      'ID': v.id,
+      'DATA_CRIACAO': formatExcelDate(v.created_at),
+      'NUMERO_VAGA': v.VAGA || '',
+      'DATA_ABERTURA': formatExcelDate(v.ABERTURA),
+      'UNIDADE': v.UNIDADE || '',
+      'SETOR': v.SETOR || '',
+      'TIPO_CARGO': v.TIPO_CARGO || '',
+      'CARGO': v.CARGO || '',
+      'TIPO': v.TIPO || '',
+      'MOTIVO': v.MOTIVO || '',
+      'NOME_SUBSTITUIDO': v.NOME_SUBSTITUIDO || '',
+      'TURNO': v.TURNO || '',
+      'GESTOR': v.GESTOR || '',
+      'DIAS_ABERTO': calculateDaysOpen(v.ABERTURA, v.FECHAMENTO),
+      'DATA_FECHAMENTO': formatExcelDate(v.FECHAMENTO),
+      'NOME_CONTRATADO': v.NOME_SUBSTITUICAO || '',
+      'CAPTACAO': v.CAPTACAO || '',
+      'RECRUTADOR': v.RECRUTADOR || '',
+      'OBSERVACOES': (v.OBSERVACOES || []).join(' | '),
+      'USUARIO_CRIADOR': v['usuário_criador'] || '',
+      'USUARIO_FECHADOR': v.usuario_fechador || ''
+    }));
+
+    // Criação da planilha
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Vagas");
+
+    // Gerar o arquivo e disparar download
+    XLSX.writeFile(workbook, `REITERLOG_Vagas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const isSearching = searchTerm.length > 0;
@@ -168,15 +243,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           <p className="text-gray-400 text-[10px] font-bold tracking-[0.3em] uppercase hidden md:block">Portal de Vagas</p>
         </div>
         
-        <div className="flex items-center space-x-4 md:space-x-6">
+        <div className="flex items-center space-x-3 md:space-x-4">
           {isAdmin && (
-            <button 
-              onClick={onNavigateToUsers}
-              className="flex items-center space-x-2 bg-gray-800 hover:bg-[#adff2f] hover:text-black text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
-            >
-              <Users size={16} />
-              <span className="hidden sm:inline">Gestão de Usuários</span>
-            </button>
+            <>
+              <button 
+                onClick={onNavigateToUnits}
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-[#adff2f] hover:text-black text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+              >
+                <Map size={16} />
+                <span className="hidden sm:inline">Unidades</span>
+              </button>
+              <button 
+                onClick={onNavigateToUsers}
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-[#adff2f] hover:text-black text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+              >
+                <Users size={16} />
+                <span className="hidden sm:inline">Usuários</span>
+              </button>
+            </>
           )}
 
           <div className="flex items-center space-x-3 bg-[#111] px-4 py-2 rounded-xl border border-gray-800">
@@ -207,14 +291,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 w-full lg:w-auto">
-            <div className="bg-white p-1 rounded-xl flex shrink-0 border-2 border-gray-200 shadow-sm">
-              {['open', 'closed', 'all'].map((status) => (
+            <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner">
+              {[
+                { id: 'open', label: 'Em Aberto', count: counts.open, activeColor: 'bg-[#adff2f] text-black', badgeColor: 'bg-black text-[#adff2f]' },
+                { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#e31e24] text-white' },
+                { id: 'all', label: 'Ver Todas', count: counts.all, activeColor: 'bg-gray-200 text-black', badgeColor: 'bg-gray-400 text-white' }
+              ].map((filter) => (
                 <button 
-                  key={status}
-                  onClick={() => setFilterStatus(status as any)}
-                  className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${filterStatus === status ? 'bg-black text-[#adff2f] shadow-lg scale-105' : 'text-gray-400 hover:text-gray-900'}`}
+                  key={filter.id}
+                  onClick={() => setFilterStatus(filter.id as any)}
+                  className={`px-5 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-3 ${filterStatus === filter.id ? filter.activeColor + ' shadow-md scale-105' : 'text-gray-400 hover:text-gray-900'}`}
                 >
-                  {status === 'open' ? 'Em Aberto' : status === 'closed' ? 'Finalizadas' : 'Ver Todas'}
+                  <span>{filter.label}</span>
+                  <span className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[9px] font-black transition-colors ${filterStatus === filter.id ? filter.badgeColor : 'bg-gray-100 text-gray-400'}`}>
+                    {filter.count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -269,19 +360,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             )}
           </div>
           <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-            <div className="flex space-x-2">
-              {availableUnits.map(unit => (
+            <div className="flex space-x-3">
+              {unitStats.map(([unit, count]) => (
                 <button
                   key={unit}
                   onClick={() => toggleUnit(unit)}
-                  className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                  className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2.5 ${
                     selectedUnits.includes(unit) 
                     ? 'bg-[#adff2f] border-black text-black shadow-[0_4px_10px_rgba(173,255,47,0.4)] scale-105' 
                     : 'bg-white border-gray-100 text-gray-500 hover:border-[#adff2f] hover:text-black shadow-sm'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${selectedUnits.includes(unit) ? 'bg-black' : 'bg-[#e31e24]'}`}></span>
-                  <span>{unit}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${selectedUnits.includes(unit) ? 'bg-black' : 'bg-[#e31e24]'}`}></span>
+                    <span>{unit}</span>
+                  </div>
+                  <span className={`flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-md text-[8px] font-black transition-all ${
+                    selectedUnits.includes(unit) 
+                    ? 'bg-black text-[#adff2f]' 
+                    : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    {count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -290,6 +390,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       </div>
 
       <main className="flex-1 p-8">
+        <div className="flex justify-end mb-3">
+          <button 
+            onClick={handleExport}
+            disabled={processedVagas.length === 0}
+            className="flex items-center space-x-2 bg-white hover:bg-green-50 text-green-700 px-4 py-2 rounded-lg border-2 border-green-100 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 disabled:opacity-30"
+          >
+            <Download size={16} strokeWidth={3} />
+            <span>Exportar Excel</span>
+          </button>
+        </div>
+        
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-96 space-y-4">

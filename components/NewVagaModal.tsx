@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { User } from '../types';
-import { X, Save, AlertCircle, Info, Briefcase } from 'lucide-react';
+import { X, Save, AlertCircle, Info, Briefcase, Loader2 } from 'lucide-react';
 
 interface NewVagaModalProps {
   user: User;
@@ -10,9 +10,16 @@ interface NewVagaModalProps {
   onSuccess: () => void;
 }
 
+interface UnitRecord {
+  id: number;
+  nome: string;
+}
+
 const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
+  const [unitsLoading, setUnitsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [availableUnits, setAvailableUnits] = useState<UnitRecord[]>([]);
   const [formData, setFormData] = useState({
     UNIDADE: '',
     SETOR: '',
@@ -25,6 +32,42 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
     GESTOR: ''
   });
 
+  useEffect(() => {
+    const fetchUnits = async () => {
+      setUnitsLoading(true);
+      const { data, error } = await supabase
+        .from('unidades')
+        .select('id, nome');
+
+      if (error) {
+        console.error('Error fetching units:', error);
+      } else if (data) {
+        // Ordenação: REITER PARK primeiro, MATRIZ segundo, o resto alfabético
+        const sorted = data.sort((a, b) => {
+          const nA = a.nome.toUpperCase().trim();
+          const nB = b.nome.toUpperCase().trim();
+          
+          const priority: Record<string, number> = { 'REITER PARK': 1, 'MATRIZ': 2 };
+          const pA = priority[nA] || 999;
+          const pB = priority[nB] || 999;
+          
+          if (pA !== pB) return pA - pB;
+          return nA.localeCompare(nB);
+        });
+        
+        setAvailableUnits(sorted);
+        
+        // Se houver unidades, seleciona a primeira por padrão
+        if (sorted.length > 0) {
+          setFormData(prev => ({ ...prev, UNIDADE: sorted[0].nome }));
+        }
+      }
+      setUnitsLoading(false);
+    };
+
+    fetchUnits();
+  }, []);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -32,6 +75,11 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.UNIDADE) {
+      setErrorMessage('Por favor, selecione uma unidade.');
+      return;
+    }
+    
     setLoading(true);
     setErrorMessage(null);
 
@@ -89,7 +137,27 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
             <div className="space-y-6">
               <div>
                 <label className={labelClass}>Unidade Operacional</label>
-                <input required name="UNIDADE" value={formData.UNIDADE} onChange={handleChange} className={inputClass} placeholder="Ex: MATRIZ CANOAS" />
+                <div className="relative">
+                  {unitsLoading ? (
+                    <div className="flex items-center px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl space-x-3">
+                      <Loader2 className="animate-spin text-gray-400" size={18} />
+                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Carregando unidades...</span>
+                    </div>
+                  ) : (
+                    <select 
+                      required 
+                      name="UNIDADE" 
+                      value={formData.UNIDADE} 
+                      onChange={handleChange} 
+                      className={selectClass}
+                    >
+                      {availableUnits.map(unit => (
+                        <option key={unit.id} value={unit.nome}>{unit.nome}</option>
+                      ))}
+                      {availableUnits.length === 0 && <option value="">Nenhuma unidade cadastrada</option>}
+                    </select>
+                  )}
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Setor / Área</label>
@@ -154,10 +222,10 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="px-10 py-4 bg-black text-[#adff2f] rounded-2xl hover:bg-[#e31e24] hover:text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl flex items-center space-x-3 transition-all disabled:opacity-50 active:scale-95 border-b-4 border-black/20"
+                disabled={loading || unitsLoading}
+                className="px-10 py-4 bg-black text-[#adff2f] rounded-2xl hover:bg-[#e31e24] hover:text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl flex items-center justify-center space-x-3 transition-all disabled:opacity-50 active:scale-95 border-b-4 border-black/20"
               >
-                <Save size={20} strokeWidth={3} />
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} strokeWidth={3} />}
                 <span>{loading ? 'Salvando...' : 'Confirmar Abertura'}</span>
               </button>
             </div>

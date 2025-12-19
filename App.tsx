@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
+import UnitManagement from './components/UnitManagement';
 import { User } from './types';
 import { supabase } from './supabase';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [currentView, setCurrentView] = useState<'vagas' | 'usuarios'>('vagas');
+  const [currentView, setCurrentView] = useState<'vagas' | 'usuarios' | 'unidades'>('vagas');
 
   useEffect(() => {
     const checkSession = async () => {
@@ -76,20 +77,27 @@ const App: React.FC = () => {
     return <Login onLogin={handleLogin} />;
   }
 
+  const renderView = () => {
+    switch (currentView) {
+      case 'usuarios':
+        return <UserManagement user={user} onBack={() => setCurrentView('vagas')} />;
+      case 'unidades':
+        return <UnitManagement user={user} onBack={() => setCurrentView('vagas')} />;
+      default:
+        return (
+          <Dashboard 
+            user={user} 
+            onLogout={handleLogout} 
+            onNavigateToUsers={() => setCurrentView('usuarios')} 
+            onNavigateToUnits={() => setCurrentView('unidades')}
+          />
+        );
+    }
+  };
+
   return (
     <>
-      {currentView === 'vagas' ? (
-        <Dashboard 
-          user={user} 
-          onLogout={handleLogout} 
-          onNavigateToUsers={() => setCurrentView('usuarios')} 
-        />
-      ) : (
-        <UserManagement 
-          user={user} 
-          onBack={() => setCurrentView('vagas')} 
-        />
-      )}
+      {renderView()}
     </>
   );
 };

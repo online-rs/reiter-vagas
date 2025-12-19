@@ -32,6 +32,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       if (authData.user) {
+        // Atualiza a data do último login na coluna correta 'ultimo_login'
+        await supabase
+          .from('profiles')
+          .update({ ultimo_login: new Date().toISOString() })
+          .eq('id', authData.user.id);
+
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('id, username, full_name, role, UNIDADES')
@@ -45,7 +51,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           return;
         }
 
-        // Garantir que unidades seja um array limpo
         const unidadesArray = Array.isArray(profileData.UNIDADES) 
           ? profileData.UNIDADES 
           : [];
@@ -93,14 +98,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
             
             <div className="group">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1 transition-colors group-focus-within:text-[#e31e24]">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-2 ml-1 transition-colors group-focus-within:text-[#e31e24]">
                 E-mail Corporativo
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#e31e24] transition-colors" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-black group-focus-within:text-[#e31e24] transition-colors" size={18} />
                 <input
                   type="email"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-2 border-gray-100 focus:border-[#e31e24] focus:bg-white focus:outline-none transition-all font-semibold text-gray-800 placeholder-gray-300"
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-[#e31e24] focus:bg-white focus:outline-none transition-all font-black text-black placeholder-gray-400"
                   placeholder="usuario@reiterlog.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -111,14 +116,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <div className="group">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1 transition-colors group-focus-within:text-[#e31e24]">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-600 mb-2 ml-1 transition-colors group-focus-within:text-[#e31e24]">
                 Senha de Acesso
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#e31e24] transition-colors" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-black group-focus-within:text-[#e31e24] transition-colors" size={18} />
                 <input
                   type="password"
-                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-2 border-gray-100 focus:border-[#e31e24] focus:bg-white focus:outline-none transition-all font-semibold text-gray-800 placeholder-gray-300"
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-[#e31e24] focus:bg-white focus:outline-none transition-all font-black text-black placeholder-gray-400"
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -145,7 +150,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
         </div>
         <div className="bg-gray-50 py-5 text-center border-t border-gray-100">
-          <p className="text-[10px] text-gray-300 font-bold uppercase tracking-[0.2em]">
+          <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">
             Reiterlog • R&S Department • v2.5
           </p>
         </div>
