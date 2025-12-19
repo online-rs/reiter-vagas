@@ -1,8 +1,12 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../supabase';
 import { Vaga, User } from '../types';
-import { Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, User as UserIcon, Eye, ShieldCheck, Users } from 'lucide-react';
+import { 
+  Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
+  User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
+  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash
+} from 'lucide-react';
 import NewVagaModal from './NewVagaModal';
 import CloseVagaModal from './CloseVagaModal';
 import VagaDetailsModal from './VagaDetailsModal';
@@ -13,6 +17,8 @@ interface DashboardProps {
   onNavigateToUsers: () => void;
 }
 
+type SortKey = keyof Vaga | 'DAYS_OPEN';
+
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +26,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const [selectedVagaForClosing, setSelectedVagaForClosing] = useState<Vaga | null>(null);
   const [selectedVagaForDetails, setSelectedVagaForDetails] = useState<Vaga | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Filtro de Unidades Estilo Coin
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  
+  // Ordenação
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
 
   const isAllAccess = Array.isArray(user.unidades) && user.unidades.some(u => u?.toString().trim().toUpperCase() === 'ALL');
   const isAdmin = user.role === 'admin';
@@ -45,19 +58,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         }
       }
 
-      const { data, error } = await query.order('ABERTURA', { ascending: false });
+      const { data, error } = await query;
       if (error) throw error;
       setVagas(data || []);
+      
+      // Se houver um modal de detalhes aberto, atualiza os dados dele também
+      if (selectedVagaForDetails) {
+        const updatedVaga = (data || []).find(v => v.id === selectedVagaForDetails.id);
+        if (updatedVaga) {
+          setSelectedVagaForDetails(updatedVaga);
+        }
+      }
     } catch (error) {
       console.error('Erro ao buscar vagas:', error);
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, user.unidades, isAllAccess]);
+  }, [filterStatus, user.unidades, isAllAccess, selectedVagaForDetails?.id]);
 
   useEffect(() => {
     fetchVagas();
-  }, [fetchVagas]);
+  }, [filterStatus, user.unidades, isAllAccess]); // Removido selectedVagaForDetails do array para evitar loop infinito
 
   const calculateDaysOpen = (abertura: string, fechamento?: string | null) => {
     const start = new Date(abertura);
@@ -65,6 +86,73 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     const diffTime = Math.abs(end.getTime() - start.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
+
+  const availableUnits = useMemo(() => {
+    const units = Array.from(new Set(vagas.map(v => v.UNIDADE))).sort();
+    return units;
+  }, [vagas]);
+
+  const toggleUnit = (unit: string) => {
+    setSelectedUnits(prev => 
+      prev.includes(unit) ? prev.filter(u => u !== unit) : [...prev, unit]
+    );
+  };
+
+  const handleSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const processedVagas = useMemo(() => {
+    let filtered = vagas.filter(v => {
+      const s = searchTerm.toLowerCase();
+      const matchesSearch = (
+        v.CARGO?.toLowerCase().includes(s) ||
+        v.GESTOR?.toLowerCase().includes(s) ||
+        v.NOME_SUBSTITUIDO?.toLowerCase().includes(s) ||
+        v.NOME_SUBSTITUICAO?.toLowerCase().includes(s) ||
+        v.UNIDADE?.toLowerCase().includes(s) ||
+        v.VAGA?.toString().includes(s)
+      );
+      
+      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(v.UNIDADE);
+      
+      return matchesSearch && matchesUnit;
+    });
+
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        let aVal: any = a[sortConfig.key as keyof Vaga];
+        let bVal: any = b[sortConfig.key as keyof Vaga];
+
+        if (sortConfig.key === 'DAYS_OPEN') {
+          aVal = calculateDaysOpen(a.ABERTURA, a.FECHAMENTO);
+          bVal = calculateDaysOpen(b.ABERTURA, b.FECHAMENTO);
+        }
+
+        if (aVal === null || aVal === undefined) return 1;
+        if (bVal === null || bVal === undefined) return -1;
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      filtered.sort((a, b) => new Date(b.ABERTURA).getTime() - new Date(a.ABERTURA).getTime());
+    }
+
+    return filtered;
+  }, [vagas, searchTerm, selectedUnits, sortConfig]);
+
+  const renderSortIcon = (key: SortKey) => {
+    if (!sortConfig || sortConfig.key !== key) return <ChevronsUpDown size={12} className="ml-1 opacity-30" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="ml-1 text-[#e31e24]" /> : <ArrowDown size={12} className="ml-1 text-[#e31e24]" />;
+  };
+
+  const isSearching = searchTerm.length > 0;
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
@@ -116,28 +204,89 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200 px-8 py-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-sm">
-        <div className="flex items-center space-x-2">
-          <div className="bg-gray-100 p-1 rounded-xl flex">
-            {['open', 'closed', 'all'].map((status) => (
-              <button 
-                key={status}
-                onClick={() => setFilterStatus(status as any)}
-                className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${filterStatus === status ? 'bg-black text-[#adff2f] shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                {status === 'open' ? 'Em Aberto' : status === 'closed' ? 'Finalizadas' : 'Ver Todas'}
-              </button>
-            ))}
+      <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 w-full lg:w-auto">
+            <div className="bg-white p-1 rounded-xl flex shrink-0 border-2 border-gray-200 shadow-sm">
+              {['open', 'closed', 'all'].map((status) => (
+                <button 
+                  key={status}
+                  onClick={() => setFilterStatus(status as any)}
+                  className={`px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${filterStatus === status ? 'bg-black text-[#adff2f] shadow-lg scale-105' : 'text-gray-400 hover:text-gray-900'}`}
+                >
+                  {status === 'open' ? 'Em Aberto' : status === 'closed' ? 'Finalizadas' : 'Ver Todas'}
+                </button>
+              ))}
+            </div>
+
+            <div className={`relative w-full md:w-80 group transition-all duration-300 ${isSearching ? 'scale-105' : ''}`}>
+              <SearchIcon className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#e31e24]' : 'text-gray-400 group-focus-within:text-[#e31e24]'}`} size={18} />
+              <input 
+                type="text" 
+                placeholder="Vaga, Cargo, Gestor, Nomes..."
+                className={`w-full pl-12 pr-12 py-3 rounded-xl border-2 outline-none font-bold text-xs uppercase tracking-wider transition-all shadow-sm
+                  ${isSearching 
+                    ? 'border-[#e31e24] bg-red-50/30 ring-4 ring-red-500/5' 
+                    : 'border-gray-200 bg-gray-50/50 focus:border-[#e31e24] focus:bg-white focus:ring-4 focus:ring-red-500/5'}`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {isSearching && (
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 hover:text-red-700 transition-colors p-1 hover:bg-red-100 rounded-full"
+                  title="Limpar Pesquisa"
+                >
+                  <X size={16} strokeWidth={3} />
+                </button>
+              )}
+            </div>
           </div>
+
+          <button 
+            onClick={() => setIsNewVagaModalOpen(true)}
+            className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-8 py-3.5 rounded-xl flex items-center justify-center font-black text-xs tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-3 w-full lg:w-auto"
+          >
+            <Plus size={20} strokeWidth={3} />
+            <span>Abrir Nova Vaga</span>
+          </button>
         </div>
 
-        <button 
-          onClick={() => setIsNewVagaModalOpen(true)}
-          className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-8 py-3.5 rounded-xl flex items-center justify-center font-black text-xs tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-3"
-        >
-          <Plus size={20} strokeWidth={3} />
-          <span>Abrir Nova Vaga</span>
-        </button>
+        <div className="flex flex-col space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              <MapPin size={14} className="text-[#e31e24]" />
+              <span>Unidades Disponíveis:</span>
+            </div>
+            {selectedUnits.length > 0 && (
+              <button 
+                onClick={() => setSelectedUnits([])}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100 animate-in fade-in slide-in-from-right-2"
+              >
+                <XCircle size={12} />
+                <span>Limpar Filtros</span>
+              </button>
+            )}
+          </div>
+          <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex space-x-2">
+              {availableUnits.map(unit => (
+                <button
+                  key={unit}
+                  onClick={() => toggleUnit(unit)}
+                  className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                    selectedUnits.includes(unit) 
+                    ? 'bg-[#adff2f] border-black text-black shadow-[0_4px_10px_rgba(173,255,47,0.4)] scale-105' 
+                    : 'bg-white border-gray-100 text-gray-500 hover:border-[#adff2f] hover:text-black shadow-sm'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${selectedUnits.includes(unit) ? 'bg-black' : 'bg-[#e31e24]'}`}></span>
+                  <span>{unit}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       <main className="flex-1 p-8">
@@ -152,41 +301,82 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
               <table className="min-w-full divide-y divide-gray-100">
                 <thead>
                   <tr className="bg-[#fafafa]">
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Unidade / Setor</th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Cargo</th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Data Abertura</th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status Atual</th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Gestor</th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Criador</th>
+                    <th onClick={() => handleSort('VAGA')} className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Vaga {renderSortIcon('VAGA')}</div>
+                    </th>
+                    <th onClick={() => handleSort('UNIDADE')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Unidade / Setor {renderSortIcon('UNIDADE')}</div>
+                    </th>
+                    <th onClick={() => handleSort('CARGO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Cargo / Gestor {renderSortIcon('CARGO')}</div>
+                    </th>
+                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                      Substituído / Contratado
+                    </th>
+                    <th onClick={() => handleSort('ABERTURA')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Abertura / Dias {renderSortIcon('ABERTURA')}</div>
+                    </th>
+                    {(filterStatus === 'closed' || filterStatus === 'all') && (
+                      <th onClick={() => handleSort('FECHAMENTO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                        <div className="flex items-center">Fechamento {renderSortIcon('FECHAMENTO')}</div>
+                      </th>
+                    )}
+                    <th onClick={() => handleSort('TIPO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Status / Tipo {renderSortIcon('TIPO')}</div>
+                    </th>
                     <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {vagas.length === 0 ? (
+                  {processedVagas.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-8 py-24 text-center">
+                      <td colSpan={9} className="px-8 py-24 text-center">
                         <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                            <AlertCircle size={48} />
                            <p className="font-bold uppercase tracking-widest text-xs">
-                             {!user.unidades || user.unidades.length === 0 ? 'Nenhuma unidade atribuída ao seu perfil' : 'Nenhuma vaga encontrada para suas unidades'}
+                             Nenhuma vaga encontrada para os filtros aplicados
                            </p>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    vagas.map((vaga) => (
+                    processedVagas.map((vaga) => (
                       <tr 
                         key={vaga.id} 
                         className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
                         onClick={() => setSelectedVagaForDetails(vaga)}
                       >
+                        <td className="px-6 py-6">
+                           <span className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs font-black text-gray-900 border border-gray-200 shadow-sm">
+                             {vaga.VAGA || '---'}
+                           </span>
+                        </td>
                         <td className="px-8 py-6">
                           <div className="text-sm font-black text-black uppercase tracking-tighter">{vaga.UNIDADE}</div>
                           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
                         </td>
                         <td className="px-8 py-6">
                           <div className="text-sm font-bold text-[#e31e24] uppercase italic">{vaga.CARGO}</div>
-                          <div className="text-[10px] text-gray-400 font-medium">{vaga.TIPO} • {vaga.MOTIVO}</div>
+                          <div className="text-[10px] text-gray-500 font-black uppercase">GESTOR: {vaga.GESTOR}</div>
+                        </td>
+                        <td className="px-8 py-6">
+                          <div className="space-y-1">
+                            {vaga.NOME_SUBSTITUIDO && (
+                              <div className="flex items-center space-x-2 text-[10px] font-bold text-gray-600 uppercase">
+                                <UserMinus size={12} className="text-gray-400" />
+                                <span>Subst: <span className="text-black font-black">{vaga.NOME_SUBSTITUIDO}</span></span>
+                              </div>
+                            )}
+                            {vaga.NOME_SUBSTITUICAO && (
+                              <div className="flex items-center space-x-2 text-[10px] font-bold text-green-700 uppercase">
+                                <UserPlus size={12} className="text-green-500" />
+                                <span>Contr: <span className="text-green-900 font-black">{vaga.NOME_SUBSTITUICAO}</span></span>
+                              </div>
+                            )}
+                            {!vaga.NOME_SUBSTITUIDO && !vaga.NOME_SUBSTITUICAO && (
+                              <span className="text-[10px] text-gray-300 italic">Nenhum registro</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex items-center space-x-2 text-gray-700">
@@ -194,34 +384,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                             <span className="text-xs font-bold">{new Date(vaga.ABERTURA).toLocaleDateString('pt-BR')}</span>
                           </div>
                           <div className={`text-[10px] font-black mt-1 ${calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO) > 30 ? 'text-orange-500' : 'text-gray-400'}`}>
-                            {calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO)} DIAS {vaga.FECHAMENTO ? 'TOTAL' : 'EM ABERTO'}
+                            {calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO)} DIAS
                           </div>
                         </td>
+                        {(filterStatus === 'closed' || filterStatus === 'all') && (
+                          <td className="px-8 py-6">
+                            {vaga.FECHAMENTO ? (
+                              <div className="flex items-center space-x-2 text-green-700">
+                                <CheckCircle size={14} className="text-green-400" />
+                                <span className="text-xs font-bold">{new Date(vaga.FECHAMENTO).toLocaleDateString('pt-BR')}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-gray-300 italic font-bold">ATIVA</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-8 py-6">
-                          {vaga.FECHAMENTO ? (
-                            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100">
-                              <CheckCircle size={10} />
-                              <span>Finalizada</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100">
-                              <AlertCircle size={10} />
-                              <span>Processando</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-8 py-6">
-                          <span className="text-xs font-bold text-gray-600 uppercase">{vaga.GESTOR}</span>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex items-center space-x-2 text-gray-500">
-                            <UserIcon size={12} className="text-gray-400" />
-                            <span className="text-xs font-black uppercase tracking-tighter">{vaga['usuário_criador']}</span>
+                          <div className="flex flex-col space-y-1.5">
+                            {vaga.FECHAMENTO ? (
+                              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit">
+                                <CheckCircle size={10} />
+                                <span>Finalizada</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
+                                <AlertCircle size={10} />
+                                <span>Em Aberto</span>
+                              </span>
+                            )}
+                            <span className="text-[9px] font-black text-gray-400 uppercase ml-1 italic">{vaga.TIPO}</span>
                           </div>
                         </td>
                         <td className="px-8 py-6 text-right">
                           <div className="flex items-center justify-end space-x-2">
-                            <button className="p-2 text-gray-300 group-hover:text-black transition-colors">
+                            <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
                               <Eye size={18} />
                             </button>
                             {!vaga.FECHAMENTO && (
@@ -230,7 +426,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                                   e.stopPropagation();
                                   setSelectedVagaForClosing(vaga);
                                 }}
-                                className="bg-black hover:bg-[#222] text-white px-5 py-2 rounded-lg transition-all shadow-md text-[10px] font-black uppercase tracking-widest"
+                                className="bg-black hover:bg-[#e31e24] text-white px-5 py-2 rounded-lg transition-all shadow-md text-[10px] font-black uppercase tracking-widest active:scale-95"
                               >
                                 Finalizar
                               </button>
@@ -260,7 +456,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         <CloseVagaModal user={user} vaga={selectedVagaForClosing} onClose={() => setSelectedVagaForClosing(null)} onSuccess={() => { setSelectedVagaForClosing(null); fetchVagas(); }} />
       )}
       {selectedVagaForDetails && (
-        <VagaDetailsModal user={user} vaga={selectedVagaForDetails} onClose={() => setSelectedVagaForDetails(null)} onUpdate={() => { setSelectedVagaForDetails(null); fetchVagas(); }} />
+        <VagaDetailsModal 
+          user={user} 
+          vaga={selectedVagaForDetails} 
+          onClose={() => setSelectedVagaForDetails(null)} 
+          onUpdate={fetchVagas} 
+          onCloseVagaAction={(v) => {
+            setSelectedVagaForDetails(null);
+            setSelectedVagaForClosing(v);
+          }}
+        />
       )}
     </div>
   );
