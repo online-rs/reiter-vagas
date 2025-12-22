@@ -13,6 +13,7 @@ export interface Vaga {
   NOME_SUBSTITUIDO?: string;
   TURNO: string;
   GESTOR: string;
+  GERENTE?: string;
   DIAS_ABERTO?: number;
   FECHAMENTO?: string;
   NOME_SUBSTITUICAO?: string;

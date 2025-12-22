@@ -5,7 +5,7 @@ import { Vaga, User } from '../types';
 import { 
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
-  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download
+  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
@@ -17,11 +17,12 @@ interface DashboardProps {
   onLogout: () => void;
   onNavigateToUsers: () => void;
   onNavigateToUnits: () => void;
+  onNavigateToIndicators: () => void;
 }
 
 type SortKey = keyof Vaga | 'DAYS_OPEN';
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits, onNavigateToIndicators }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewVagaModalOpen, setIsNewVagaModalOpen] = useState(false);
@@ -30,10 +31,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Filtro de Unidades Estilo Coin
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
-  
-  // Ordenação
+  const [selectedCreators, setSelectedCreators] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
 
   const isAllAccess = Array.isArray(user.unidades) && user.unidades.some(u => u?.toString().trim().toUpperCase() === 'ALL');
@@ -58,7 +57,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       if (error) throw error;
       setVagas(data || []);
       
-      // Se houver um modal de detalhes aberto, atualiza os dados dele também
       if (selectedVagaForDetails) {
         const updatedVaga = (data || []).find(v => v.id === selectedVagaForDetails.id);
         if (updatedVaga) {
@@ -83,19 +81,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // Cálculo das unidades e suas quantidades de vagas EM ABERTO
+  const getVagaCreator = (v: Vaga) => {
+    return v['usuário_criador'] && v['usuário_criador'].trim() !== '' 
+      ? v['usuário_criador'] 
+      : (v.RECRUTADOR || 'SISTEMA');
+  };
+
+  // Estatísticas de Criadores baseadas apenas em Vagas Abertas
+  const creatorStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    vagas.forEach(v => {
+      if (!v.FECHAMENTO) {
+        const creator = getVagaCreator(v);
+        stats[creator] = (stats[creator] || 0) + 1;
+      }
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [vagas]);
+
   const unitStats = useMemo(() => {
     const stats: Record<string, number> = {};
-    
-    // Primeiro, identificamos todas as unidades presentes (mesmo as que só têm fechadas)
     vagas.forEach(v => {
-      if (!stats[v.UNIDADE]) stats[v.UNIDADE] = 0;
-      // Incrementamos o contador apenas se a vaga estiver em aberto
       if (!v.FECHAMENTO) {
+        if (!stats[v.UNIDADE]) stats[v.UNIDADE] = 0;
         stats[v.UNIDADE]++;
       }
     });
-    
     return Object.entries(stats).sort(([a], [b]) => a.localeCompare(b));
   }, [vagas]);
 
@@ -105,15 +116,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     );
   };
 
-  const handleSort = (key: SortKey) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
+  const toggleCreator = (creator: string) => {
+    setSelectedCreators(prev => 
+      prev.includes(creator) ? prev.filter(c => c !== creator) : [...prev, creator]
+    );
   };
 
-  // Contadores para os filtros de status
   const counts = useMemo(() => {
     return {
       all: vagas.length,
@@ -124,7 +132,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
 
   const processedVagas = useMemo(() => {
     let filtered = vagas.filter(v => {
-      // Aplicar filtro de status
       if (filterStatus === 'open' && v.FECHAMENTO) return false;
       if (filterStatus === 'closed' && !v.FECHAMENTO) return false;
 
@@ -132,6 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       const matchesSearch = (
         v.CARGO?.toLowerCase().includes(s) ||
         v.GESTOR?.toLowerCase().includes(s) ||
+        v.GERENTE?.toLowerCase().includes(s) ||
         v.NOME_SUBSTITUIDO?.toLowerCase().includes(s) ||
         v.NOME_SUBSTITUICAO?.toLowerCase().includes(s) ||
         v.UNIDADE?.toLowerCase().includes(s) ||
@@ -140,7 +148,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       
       const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(v.UNIDADE);
       
-      return matchesSearch && matchesUnit;
+      const creator = getVagaCreator(v);
+      const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
+      
+      return matchesSearch && matchesUnit && matchesCreator;
     });
 
     if (sortConfig) {
@@ -165,7 +176,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     }
 
     return filtered;
-  }, [vagas, searchTerm, selectedUnits, sortConfig, filterStatus]);
+  }, [vagas, searchTerm, selectedUnits, selectedCreators, sortConfig, filterStatus]);
+
+  const handleSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const renderSortIcon = (key: SortKey) => {
     if (!sortConfig || sortConfig.key !== key) return <ChevronsUpDown size={12} className="ml-1 opacity-30" />;
@@ -185,15 +204,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const handleExport = () => {
     if (processedVagas.length === 0) return;
 
-    // Cabeçalhos amigáveis para o Excel
-    const headers = [
-      'ID', 'DATA_CRIACAO', 'NUMERO_VAGA', 'DATA_ABERTURA', 'UNIDADE', 'SETOR', 
-      'TIPO_CARGO', 'CARGO', 'TIPO', 'MOTIVO', 'NOME_SUBSTITUIDO', 'TURNO', 
-      'GESTOR', 'DIAS_ABERTO', 'DATA_FECHAMENTO', 'NOME_CONTRATADO', 'CAPTACAO', 
-      'RECRUTADOR', 'OBSERVACOES', 'USUARIO_CRIADOR', 'USUARIO_FECHADOR'
-    ];
-
-    // Mapeamento dos dados
     const excelData = processedVagas.map(v => ({
       'ID': v.id,
       'DATA_CRIACAO': formatExcelDate(v.created_at),
@@ -208,6 +218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       'NOME_SUBSTITUIDO': v.NOME_SUBSTITUIDO || '',
       'TURNO': v.TURNO || '',
       'GESTOR': v.GESTOR || '',
+      'GERENTE': v.GERENTE || '',
       'DIAS_ABERTO': calculateDaysOpen(v.ABERTURA, v.FECHAMENTO),
       'DATA_FECHAMENTO': formatExcelDate(v.FECHAMENTO),
       'NOME_CONTRATADO': v.NOME_SUBSTITUICAO || '',
@@ -218,12 +229,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       'USUARIO_FECHADOR': v.usuario_fechador || ''
     }));
 
-    // Criação da planilha
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Vagas");
-
-    // Gerar o arquivo e disparar download
     XLSX.writeFile(workbook, `REITERLOG_Vagas_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
@@ -247,15 +255,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           {isAdmin && (
             <>
               <button 
+                onClick={onNavigateToIndicators}
+                className="flex items-center space-x-2 bg-[#adff2f] text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-black shadow-lg hover:bg-white"
+              >
+                <BarChart2 size={16} strokeWidth={3} />
+                <span className="hidden sm:inline">Indicadores</span>
+              </button>
+              <button 
                 onClick={onNavigateToUnits}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-[#adff2f] hover:text-black text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
               >
                 <Map size={16} />
                 <span className="hidden sm:inline">Unidades</span>
               </button>
               <button 
                 onClick={onNavigateToUsers}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-[#adff2f] hover:text-black text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
               >
                 <Users size={16} />
                 <span className="hidden sm:inline">Usuários</span>
@@ -288,7 +303,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm space-y-5">
+      <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 w-full lg:w-auto">
             <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner">
@@ -343,47 +358,88 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           </button>
         </div>
 
-        <div className="flex flex-col space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              <MapPin size={14} className="text-[#e31e24]" />
-              <span>Unidades Disponíveis:</span>
-            </div>
-            {selectedUnits.length > 0 && (
-              <button 
-                onClick={() => setSelectedUnits([])}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100 animate-in fade-in slide-in-from-right-2"
-              >
-                <XCircle size={12} />
-                <span>Limpar Filtros</span>
-              </button>
-            )}
-          </div>
-          <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-            <div className="flex space-x-3">
-              {unitStats.map(([unit, count]) => (
-                <button
-                  key={unit}
-                  onClick={() => toggleUnit(unit)}
-                  className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2.5 ${
-                    selectedUnits.includes(unit) 
-                    ? 'bg-[#adff2f] border-black text-black shadow-[0_4px_10px_rgba(173,255,47,0.4)] scale-105' 
-                    : 'bg-white border-gray-100 text-gray-500 hover:border-[#adff2f] hover:text-black shadow-sm'
-                  }`}
+        {/* FILTROS DE UNIDADE E CRIADOR (COINS) */}
+        <div className="space-y-5">
+          {/* Unidades */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <MapPin size={14} className="text-[#e31e24]" />
+                <span>Unidades Operacionais:</span>
+              </div>
+              {selectedUnits.length > 0 && (
+                <button 
+                  onClick={() => setSelectedUnits([])}
+                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
                 >
-                  <div className="flex items-center space-x-2">
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedUnits.includes(unit) ? 'bg-black' : 'bg-[#e31e24]'}`}></span>
-                    <span>{unit}</span>
-                  </div>
-                  <span className={`flex items-center justify-center min-w-[18px] h-4.5 px-1.5 rounded-md text-[8px] font-black transition-all ${
-                    selectedUnits.includes(unit) 
-                    ? 'bg-black text-[#adff2f]' 
-                    : 'bg-gray-100 text-gray-400'
-                  }`}>
-                    {count}
-                  </span>
+                  Limpar Unidades
                 </button>
-              ))}
+              )}
+            </div>
+            <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="flex space-x-2">
+                {unitStats.map(([unit, count]) => (
+                  <button
+                    key={unit}
+                    onClick={() => toggleUnit(unit)}
+                    className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                      selectedUnits.includes(unit) 
+                      ? 'bg-[#adff2f] border-black text-black shadow-md' 
+                      : 'bg-white border-gray-100 text-gray-500 hover:border-[#adff2f]'
+                    }`}
+                  >
+                    <span>{unit}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedUnits.includes(unit) ? 'bg-black text-[#adff2f]' : 'bg-gray-100 text-gray-400'}`}>
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Criadores (Coins) */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <UserCircle size={14} className="text-[#adff2f]" />
+                <span>Responsáveis pela Abertura (Vagas Ativas):</span>
+              </div>
+              {selectedCreators.length > 0 && (
+                <button 
+                  onClick={() => setSelectedCreators([])}
+                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
+                >
+                  Limpar Criadores
+                </button>
+              )}
+            </div>
+            <div className="flex items-center space-x-3 overflow-x-auto pb-4 scrollbar-hide">
+              <div className="flex space-x-3">
+                {creatorStats.map(([creator, count]) => (
+                  <button
+                    key={creator}
+                    onClick={() => toggleCreator(creator)}
+                    className={`flex items-center space-x-3 px-4 py-2.5 rounded-full border-2 transition-all group shrink-0 ${
+                      selectedCreators.includes(creator)
+                      ? 'bg-black border-black text-white shadow-xl scale-105'
+                      : 'bg-white border-gray-100 text-gray-500 hover:border-black'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] uppercase transition-colors ${
+                      selectedCreators.includes(creator) ? 'bg-[#adff2f] text-black' : 'bg-gray-100 text-gray-400 group-hover:bg-black group-hover:text-[#adff2f]'
+                    }`}>
+                      {creator.substring(0, 2)}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[10px] font-black uppercase leading-tight">{creator}</p>
+                      <p className={`text-[8px] font-bold uppercase mt-0.5 ${selectedCreators.includes(creator) ? 'text-[#adff2f]' : 'text-[#e31e24]'}`}>
+                        {count} Vagas Ativas
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -419,7 +475,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                       <div className="flex items-center">Unidade / Setor {renderSortIcon('UNIDADE')}</div>
                     </th>
                     <th onClick={() => handleSort('CARGO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
-                      <div className="flex items-center">Cargo / Gestor {renderSortIcon('CARGO')}</div>
+                      <div className="flex items-center">Cargo / Responsáveis {renderSortIcon('CARGO')}</div>
                     </th>
                     <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                       Substituído / Contratado
@@ -468,7 +524,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                         </td>
                         <td className="px-8 py-6">
                           <div className="text-sm font-bold text-[#e31e24] uppercase italic">{vaga.CARGO}</div>
-                          <div className="text-[10px] text-gray-500 font-black uppercase">GESTOR: {vaga.GESTOR}</div>
+                          <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
+                          <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
                         </td>
                         <td className="px-8 py-6">
                           <div className="space-y-1">

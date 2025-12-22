@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
 import { User, Vaga } from '../types';
-import { X, MessageSquare, RotateCcw, Send, Calendar, User as UserIcon, Briefcase, MapPin, Loader2, Info, CheckCircle, UserMinus, UserPlus, Clock, Hash } from 'lucide-react';
+import { X, MessageSquare, RotateCcw, Send, Calendar, User as UserIcon, Briefcase, MapPin, Loader2, Info, CheckCircle, UserMinus, UserPlus, Clock, Hash, ShieldCheck } from 'lucide-react';
 
 interface VagaDetailsModalProps {
   user: User;
@@ -42,7 +42,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
       alert('Erro ao adicionar comentário: ' + error.message);
     } else {
       setNewComment('');
-      onUpdate(); // Atualiza os dados no Dashboard, que por sua vez atualiza este modal sem fechar
+      onUpdate();
     }
     setLoading(false);
   };
@@ -87,7 +87,6 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
       <div className="bg-white w-full max-w-6xl rounded-[40px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh] border-t-[12px] border-black border-x border-b border-gray-200">
         
-        {/* Lado Esquerdo: Detalhes */}
         <div className="w-full md:w-5/12 bg-gray-50/80 p-10 overflow-y-auto border-r-2 border-gray-100">
           <div className="flex justify-between items-start mb-10 md:hidden">
              <h2 className="text-3xl font-black uppercase tracking-tighter">Detalhes</h2>
@@ -130,13 +129,24 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
                 </div>
               </div>
 
-              <div className="flex items-start space-x-5">
-                <div className="bg-white p-3 rounded-2xl text-black border-2 border-gray-100 shadow-sm">
-                    <Briefcase size={24} strokeWidth={3} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-start space-x-5">
+                  <div className="bg-white p-3 rounded-2xl text-black border-2 border-gray-100 shadow-sm">
+                      <Briefcase size={24} strokeWidth={3} />
+                  </div>
+                  <div>
+                    <label className={labelStyle}>Gestor Direto</label>
+                    <p className={dataStyle}>{vaga.GESTOR}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className={labelStyle}>Gestor Direto</label>
-                  <p className={dataStyle}>{vaga.GESTOR}</p>
+                <div className="flex items-start space-x-5">
+                  <div className="bg-white p-3 rounded-2xl text-black border-2 border-gray-100 shadow-sm">
+                      <ShieldCheck size={24} strokeWidth={3} />
+                  </div>
+                  <div>
+                    <label className={labelStyle}>Gerente Resp.</label>
+                    <p className={dataStyle}>{vaga.GERENTE || '---'}</p>
+                  </div>
                 </div>
               </div>
 
@@ -243,7 +253,6 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
           </div>
         </div>
 
-        {/* Lado Direito: Comentários/Timeline */}
         <div className="flex-1 flex flex-col h-full bg-white relative">
           <div className="flex items-center justify-between p-8 border-b-4 border-gray-50 bg-white">
             <div className="flex items-center space-x-4 text-black">
@@ -286,7 +295,6 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             )}
           </div>
 
-          {/* Input de Novo Comentário */}
           <div className="p-10 border-t-4 border-gray-50 bg-gray-50/50">
             <form onSubmit={handleAddComment} className="relative max-w-4xl mx-auto">
               <textarea 

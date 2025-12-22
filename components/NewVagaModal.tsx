@@ -29,7 +29,8 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
     MOTIVO: '',
     NOME_SUBSTITUIDO: '',
     TURNO: '',
-    GESTOR: ''
+    GESTOR: '',
+    GERENTE: ''
   });
 
   useEffect(() => {
@@ -42,7 +43,6 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
       if (error) {
         console.error('Error fetching units:', error);
       } else if (data) {
-        // Ordenação: REITER PARK primeiro, MATRIZ segundo, o resto alfabético
         const sorted = data.sort((a, b) => {
           const nA = a.nome.toUpperCase().trim();
           const nB = b.nome.toUpperCase().trim();
@@ -57,7 +57,6 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
         
         setAvailableUnits(sorted);
         
-        // Se houver unidades, seleciona a primeira por padrão
         if (sorted.length > 0) {
           setFormData(prev => ({ ...prev, UNIDADE: sorted[0].nome }));
         }
@@ -174,21 +173,19 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                   <option value="Motorista">Motorista</option>
                 </select>
               </div>
+              <div>
+                <label className={labelClass}>Turno</label>
+                <input name="TURNO" value={formData.TURNO} onChange={handleChange} className={inputClass} placeholder="Ex: 2º TURNO (B)" />
+              </div>
             </div>
 
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>Modalidade</label>
-                  <select required name="TIPO" value={formData.TIPO} onChange={handleChange} className={selectClass}>
-                    <option value="Substituição">Substituição</option>
-                    <option value="Aumento de Quadro">Aumento de Quadro</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Turno</label>
-                  <input name="TURNO" value={formData.TURNO} onChange={handleChange} className={inputClass} placeholder="Ex: 2º TURNO (B)" />
-                </div>
+              <div>
+                <label className={labelClass}>Modalidade</label>
+                <select required name="TIPO" value={formData.TIPO} onChange={handleChange} className={selectClass}>
+                  <option value="Substituição">Substituição</option>
+                  <option value="Aumento de Quadro">Aumento de Quadro</option>
+                </select>
               </div>
               <div>
                 <label className={labelClass}>Motivo da Vaga</label>
@@ -198,9 +195,15 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                 <label className={labelClass}>Colaborador Substituído</label>
                 <input name="NOME_SUBSTITUIDO" value={formData.NOME_SUBSTITUIDO} onChange={handleChange} className={inputClass} placeholder="NOME COMPLETO" />
               </div>
-              <div>
-                <label className={labelClass}>Gestor Responsável</label>
-                <input required name="GESTOR" value={formData.GESTOR} onChange={handleChange} className={inputClass} placeholder="NOME DO LÍDER/COORDENADOR" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Gestor Responsável</label>
+                  <input required name="GESTOR" value={formData.GESTOR} onChange={handleChange} className={inputClass} placeholder="LÍDER/COORD." />
+                </div>
+                <div>
+                  <label className={labelClass}>Gerente Responsável</label>
+                  <input required name="GERENTE" value={formData.GERENTE} onChange={handleChange} className={inputClass} placeholder="GERENTE" />
+                </div>
               </div>
             </div>
           </div>
