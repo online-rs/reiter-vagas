@@ -5,7 +5,7 @@ import { Vaga, User } from '../types';
 import { 
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
-  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle
+  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle, UserCheck, HelpCircle, Settings
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
@@ -18,16 +18,18 @@ interface DashboardProps {
   onNavigateToUsers: () => void;
   onNavigateToUnits: () => void;
   onNavigateToIndicators: () => void;
+  onNavigateToAdminVagas?: () => void;
 }
 
 type SortKey = keyof Vaga | 'DAYS_OPEN';
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits, onNavigateToIndicators }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits, onNavigateToIndicators, onNavigateToAdminVagas }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewVagaModalOpen, setIsNewVagaModalOpen] = useState(false);
   const [selectedVagaForClosing, setSelectedVagaForClosing] = useState<Vaga | null>(null);
   const [selectedVagaForDetails, setSelectedVagaForDetails] = useState<Vaga | null>(null);
+  const [vagaToAssignCreator, setVagaToAssignCreator] = useState<Vaga | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -85,6 +87,31 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     return v['usuário_criador'] && v['usuário_criador'].trim() !== '' 
       ? v['usuário_criador'] 
       : (v.RECRUTADOR || 'SISTEMA');
+  };
+
+  const handleAssignSelfAsCreator = async () => {
+    if (!vagaToAssignCreator) return;
+    
+    setLoading(true);
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    const newObs = `${dateStr} ${user.username}: Usuário assumiu a autoria da abertura desta vaga manualmente.`;
+    const updatedObservations = [...(vagaToAssignCreator.OBSERVACOES || []), newObs];
+
+    const { error } = await supabase
+      .from('vagas')
+      .update({ 
+        'usuário_criador': user.username,
+        OBSERVACOES: updatedObservations
+      })
+      .eq('id', vagaToAssignCreator.id);
+
+    if (error) {
+      alert('Erro ao vincular criador: ' + error.message);
+    } else {
+      setVagaToAssignCreator(null);
+      fetchVagas();
+    }
+    setLoading(false);
   };
 
   // Estatísticas de Criadores baseadas apenas em Vagas Abertas
@@ -254,6 +281,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         <div className="flex items-center space-x-3 md:space-x-4">
           {isAdmin && (
             <>
+              <button 
+                onClick={onNavigateToAdminVagas}
+                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#adff2f]"
+              >
+                <Settings size={16} strokeWidth={3} />
+                <span className="hidden sm:inline">Gestão Global</span>
+              </button>
               <button 
                 onClick={onNavigateToIndicators}
                 className="flex items-center space-x-2 bg-[#adff2f] text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-black shadow-lg hover:bg-white"
@@ -507,102 +541,117 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                       </td>
                     </tr>
                   ) : (
-                    processedVagas.map((vaga) => (
-                      <tr 
-                        key={vaga.id} 
-                        className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
-                        onClick={() => setSelectedVagaForDetails(vaga)}
-                      >
-                        <td className="px-6 py-6">
-                           <span className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs font-black text-gray-900 border border-gray-200 shadow-sm">
-                             {vaga.VAGA || '---'}
-                           </span>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="text-sm font-black text-black uppercase tracking-tighter">{vaga.UNIDADE}</div>
-                          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="text-sm font-bold text-[#e31e24] uppercase italic">{vaga.CARGO}</div>
-                          <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
-                          <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="space-y-1">
-                            {vaga.NOME_SUBSTITUIDO && (
-                              <div className="flex items-center space-x-2 text-[10px] font-bold text-gray-600 uppercase">
-                                <UserMinus size={12} className="text-gray-400" />
-                                <span>Subst: <span className="text-black font-black">{vaga.NOME_SUBSTITUIDO}</span></span>
-                              </div>
-                            )}
-                            {vaga.NOME_SUBSTITUICAO && (
-                              <div className="flex items-center space-x-2 text-[10px] font-bold text-green-700 uppercase">
-                                <UserPlus size={12} className="text-green-500" />
-                                <span>Contr: <span className="text-green-900 font-black">{vaga.NOME_SUBSTITUICAO}</span></span>
-                              </div>
-                            )}
-                            {!vaga.NOME_SUBSTITUIDO && !vaga.NOME_SUBSTITUICAO && (
-                              <span className="text-[10px] text-gray-300 italic">Nenhum registro</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-8 py-6">
-                          <div className="flex items-center space-x-2 text-gray-700">
-                            <Clock size={14} className="text-gray-300" />
-                            <span className="text-xs font-bold">{new Date(vaga.ABERTURA).toLocaleDateString('pt-BR')}</span>
-                          </div>
-                          <div className={`text-[10px] font-black mt-1 ${calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO) > 30 ? 'text-orange-500' : 'text-gray-400'}`}>
-                            {calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO)} DIAS
-                          </div>
-                        </td>
-                        {(filterStatus === 'closed' || filterStatus === 'all') && (
-                          <td className="px-8 py-6">
-                            {vaga.FECHAMENTO ? (
-                              <div className="flex items-center space-x-2 text-green-700">
-                                <CheckCircle size={14} className="text-green-400" />
-                                <span className="text-xs font-bold">{new Date(vaga.FECHAMENTO).toLocaleDateString('pt-BR')}</span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-gray-300 italic font-bold">ATIVA</span>
-                            )}
+                    processedVagas.map((vaga) => {
+                      const hasCreator = vaga['usuário_criador'] && vaga['usuário_criador'].trim() !== '';
+                      return (
+                        <tr 
+                          key={vaga.id} 
+                          className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
+                          onClick={() => setSelectedVagaForDetails(vaga)}
+                        >
+                          <td className="px-6 py-6">
+                            <span className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs font-black text-gray-900 border border-gray-200 shadow-sm">
+                              {vaga.VAGA || '---'}
+                            </span>
                           </td>
-                        )}
-                        <td className="px-8 py-6">
-                          <div className="flex flex-col space-y-1.5">
-                            {vaga.FECHAMENTO ? (
-                              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit">
-                                <CheckCircle size={10} />
-                                <span>Finalizada</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
-                                <AlertCircle size={10} />
-                                <span>Em Aberto</span>
-                              </span>
-                            )}
-                            <span className="text-[9px] font-black text-gray-400 uppercase ml-1 italic">{vaga.TIPO}</span>
-                          </div>
-                        </td>
-                        <td className="px-8 py-6 text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
-                              <Eye size={18} />
-                            </button>
-                            {!vaga.FECHAMENTO && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedVagaForClosing(vaga);
-                                }}
-                                className="bg-black hover:bg-[#e31e24] text-white px-5 py-2 rounded-lg transition-all shadow-md text-[10px] font-black uppercase tracking-widest active:scale-95"
-                              >
-                                Finalizar
+                          <td className="px-8 py-6">
+                            <div className="text-sm font-black text-black uppercase tracking-tighter">{vaga.UNIDADE}</div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="text-sm font-bold text-[#e31e24] uppercase italic">{vaga.CARGO}</div>
+                            <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
+                            <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="space-y-1">
+                              {vaga.NOME_SUBSTITUIDO && (
+                                <div className="flex items-center space-x-2 text-[10px] font-bold text-gray-600 uppercase">
+                                  <UserMinus size={12} className="text-gray-400" />
+                                  <span>Subst: <span className="text-black font-black">{vaga.NOME_SUBSTITUIDO}</span></span>
+                                </div>
+                              )}
+                              {vaga.NOME_SUBSTITUICAO && (
+                                <div className="flex items-center space-x-2 text-[10px] font-bold text-green-700 uppercase">
+                                  <UserPlus size={12} className="text-green-500" />
+                                  <span>Contr: <span className="text-green-900 font-black">{vaga.NOME_SUBSTITUICAO}</span></span>
+                                </div>
+                              )}
+                              {!vaga.NOME_SUBSTITUIDO && !vaga.NOME_SUBSTITUICAO && (
+                                <span className="text-[10px] text-gray-300 italic">Nenhum registro</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="flex items-center space-x-2 text-gray-700">
+                              <Clock size={14} className="text-gray-300" />
+                              <span className="text-xs font-bold">{new Date(vaga.ABERTURA).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <div className={`text-[10px] font-black mt-1 ${calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO) > 30 ? 'text-orange-500' : 'text-gray-400'}`}>
+                              {calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO)} DIAS
+                            </div>
+                          </td>
+                          {(filterStatus === 'closed' || filterStatus === 'all') && (
+                            <td className="px-8 py-6">
+                              {vaga.FECHAMENTO ? (
+                                <div className="flex items-center space-x-2 text-green-700">
+                                  <CheckCircle size={14} className="text-green-400" />
+                                  <span className="text-xs font-bold">{new Date(vaga.FECHAMENTO).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-gray-300 italic font-bold">ATIVA</span>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-8 py-6">
+                            <div className="flex flex-col space-y-1.5">
+                              {vaga.FECHAMENTO ? (
+                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit">
+                                  <CheckCircle size={10} />
+                                  <span>Finalizada</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
+                                  <AlertCircle size={10} />
+                                  <span>Em Aberto</span>
+                                </span>
+                              )}
+                              <span className="text-[9px] font-black text-gray-400 uppercase ml-1 italic">{vaga.TIPO}</span>
+                            </div>
+                          </td>
+                          <td className="px-8 py-6 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              {!vaga.FECHAMENTO && !hasCreator && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setVagaToAssignCreator(vaga);
+                                  }}
+                                  className="p-2 bg-[#adff2f] text-black rounded-xl hover:bg-black hover:text-[#adff2f] transition-all animate-pulse shadow-lg border border-black/10"
+                                  title="Assumir Vaga como Criador"
+                                >
+                                  <UserPlus size={18} strokeWidth={3} />
+                                </button>
+                              )}
+                              <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
+                                <Eye size={18} />
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {!vaga.FECHAMENTO && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedVagaForClosing(vaga);
+                                  }}
+                                  className="bg-black hover:bg-[#e31e24] text-white px-5 py-2 rounded-lg transition-all shadow-md text-[10px] font-black uppercase tracking-widest active:scale-95"
+                                >
+                                  Finalizar
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -616,6 +665,44 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           Reiterlog Logística • Tecnologia de Gestão de Talentos
         </p>
       </footer>
+
+      {/* MODAL DE VÍNCULO DE CRIADOR */}
+      {vagaToAssignCreator && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden border-t-[12px] border-[#adff2f] transform transition-all animate-in zoom-in duration-300">
+            <div className="p-10 flex flex-col items-center text-center">
+              <div className="w-24 h-24 bg-[#adff2f] rounded-full flex items-center justify-center mb-8 shadow-2xl animate-bounce">
+                <UserPlus size={48} className="text-black" strokeWidth={3} />
+              </div>
+              <h2 className="text-2xl font-black uppercase tracking-tighter italic text-black leading-none mb-4">
+                VINCULAR <span className="text-[#e31e24]">CRIADOR</span>
+              </h2>
+              <div className="bg-gray-50 p-6 rounded-2xl border-2 border-dashed border-gray-200 w-full mb-8">
+                <p className="text-xs font-bold text-gray-600 uppercase tracking-widest leading-relaxed">
+                  Deseja se vincular à vaga <span className="text-black font-black">#{vagaToAssignCreator.VAGA} - {vagaToAssignCreator.CARGO}</span> como o Recrutador responsável pela abertura?
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 w-full">
+                <button 
+                  onClick={() => setVagaToAssignCreator(null)}
+                  className="px-6 py-4 bg-gray-100 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+                >
+                  Agora não
+                </button>
+                <button 
+                  onClick={handleAssignSelfAsCreator}
+                  className="px-6 py-4 bg-black text-[#adff2f] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#e31e24] hover:text-white transition-all shadow-xl active:scale-95 border-b-4 border-black/20"
+                >
+                  Sim, vincular
+                </button>
+              </div>
+              <p className="mt-6 text-[9px] font-black text-gray-400 uppercase italic">
+                Ação registrada por: {user.username}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isNewVagaModalOpen && (
         <NewVagaModal user={user} onClose={() => setIsNewVagaModalOpen(false)} onSuccess={() => { setIsNewVagaModalOpen(false); fetchVagas(); }} />

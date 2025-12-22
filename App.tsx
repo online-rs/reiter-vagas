@@ -5,13 +5,14 @@ import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 import UnitManagement from './components/UnitManagement';
 import Indicators from './components/Indicators';
+import AdminManagement from './components/AdminManagement';
 import { User } from './types';
 import { supabase } from './supabase';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [currentView, setCurrentView] = useState<'vagas' | 'usuarios' | 'unidades' | 'indicadores'>('vagas');
+  const [currentView, setCurrentView] = useState<'vagas' | 'usuarios' | 'unidades' | 'indicadores' | 'admin_vagas'>('vagas');
 
   useEffect(() => {
     const checkSession = async () => {
@@ -86,6 +87,8 @@ const App: React.FC = () => {
         return <UnitManagement user={user} onBack={() => setCurrentView('vagas')} />;
       case 'indicadores':
         return <Indicators user={user} onBack={() => setCurrentView('vagas')} />;
+      case 'admin_vagas':
+        return <AdminManagement user={user} onBack={() => setCurrentView('vagas')} />;
       default:
         return (
           <Dashboard 
@@ -94,6 +97,7 @@ const App: React.FC = () => {
             onNavigateToUsers={() => setCurrentView('usuarios')} 
             onNavigateToUnits={() => setCurrentView('unidades')}
             onNavigateToIndicators={() => setCurrentView('indicadores')}
+            onNavigateToAdminVagas={() => setCurrentView('admin_vagas')}
           />
         );
     }
