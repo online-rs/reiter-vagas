@@ -22,6 +22,7 @@ export interface Vaga {
   OBSERVACOES: string[];
   'usuário_criador': string;
   usuario_fechador?: string;
+  CONGELADA: boolean;
 }
 
 export interface User {

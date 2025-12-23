@@ -5,7 +5,8 @@ import { Vaga, User } from '../types';
 import { 
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
-  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle, UserCheck, HelpCircle, Settings
+  UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle, UserCheck, HelpCircle, Settings,
+  Snowflake, Flame, Lock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
@@ -31,6 +32,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const [selectedVagaForDetails, setSelectedVagaForDetails] = useState<Vaga | null>(null);
   const [vagaToAssignCreator, setVagaToAssignCreator] = useState<Vaga | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
+  // Alterado: agora inicia em 'not_frozen' para ocultar congeladas do fluxo normal
+  const [filterFrozen, setFilterFrozen] = useState<'all' | 'frozen' | 'not_frozen'>('not_frozen');
   const [searchTerm, setSearchTerm] = useState('');
   
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
@@ -114,7 +117,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     setLoading(false);
   };
 
-  // Estatísticas de Criadores baseadas apenas em Vagas Abertas
   const creatorStats = useMemo(() => {
     const stats: Record<string, number> = {};
     vagas.forEach(v => {
@@ -152,8 +154,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const counts = useMemo(() => {
     return {
       all: vagas.length,
-      open: vagas.filter(v => !v.FECHAMENTO).length,
-      closed: vagas.filter(v => !!v.FECHAMENTO).length
+      open: vagas.filter(v => !v.FECHAMENTO && !v.CONGELADA).length,
+      closed: vagas.filter(v => !!v.FECHAMENTO).length,
+      frozen: vagas.filter(v => v.CONGELADA && !v.FECHAMENTO).length
     };
   }, [vagas]);
 
@@ -161,6 +164,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     let filtered = vagas.filter(v => {
       if (filterStatus === 'open' && v.FECHAMENTO) return false;
       if (filterStatus === 'closed' && !v.FECHAMENTO) return false;
+
+      if (filterFrozen === 'frozen' && !v.CONGELADA) return false;
+      if (filterFrozen === 'not_frozen' && v.CONGELADA) return false;
 
       const s = searchTerm.toLowerCase();
       const matchesSearch = (
@@ -203,7 +209,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     }
 
     return filtered;
-  }, [vagas, searchTerm, selectedUnits, selectedCreators, sortConfig, filterStatus]);
+  }, [vagas, searchTerm, selectedUnits, selectedCreators, sortConfig, filterStatus, filterFrozen]);
 
   const handleSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -253,7 +259,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
       'RECRUTADOR': v.RECRUTADOR || '',
       'OBSERVACOES': (v.OBSERVACOES || []).join(' | '),
       'USUARIO_CRIADOR': v['usuário_criador'] || '',
-      'USUARIO_FECHADOR': v.usuario_fechador || ''
+      'USUARIO_FECHADOR': v.usuario_fechador || '',
+      'CONGELADA': v.CONGELADA ? 'SIM' : 'NÃO'
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -342,19 +349,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 w-full lg:w-auto">
             <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner">
               {[
-                { id: 'open', label: 'Em Aberto', count: counts.open, activeColor: 'bg-[#adff2f] text-black', badgeColor: 'bg-black text-[#adff2f]' },
-                { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#e31e24] text-white' },
-                { id: 'all', label: 'Ver Todas', count: counts.all, activeColor: 'bg-gray-200 text-black', badgeColor: 'bg-gray-400 text-white' }
+                { id: 'open', label: 'Fluxo Normal', count: counts.open, activeColor: 'bg-orange-500 text-white', badgeColor: 'bg-white text-orange-500' },
+                { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#adff2f] text-black' },
+                { id: 'all', label: 'Ver Todas', count: counts.all, activeColor: 'bg-gray-800 text-white', badgeColor: 'bg-gray-400 text-white' }
               ].map((filter) => (
                 <button 
                   key={filter.id}
-                  onClick={() => setFilterStatus(filter.id as any)}
+                  onClick={() => {
+                    setFilterStatus(filter.id as any);
+                    if (filter.id === 'open') setFilterFrozen('not_frozen');
+                    else if (filter.id === 'all') setFilterFrozen('all');
+                  }}
                   className={`px-5 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-3 ${filterStatus === filter.id ? filter.activeColor + ' shadow-md scale-105' : 'text-gray-400 hover:text-gray-900'}`}
                 >
                   <span>{filter.label}</span>
                   <span className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[9px] font-black transition-colors ${filterStatus === filter.id ? filter.badgeColor : 'bg-gray-100 text-gray-400'}`}>
                     {filter.count}
                   </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner ml-2">
+              {[
+                { id: 'not_frozen', label: 'Ativas', icon: <Flame size={12} />, activeColor: 'bg-black text-white' },
+                { id: 'frozen', label: 'Congeladas', icon: <Snowflake size={12} />, activeColor: 'bg-blue-600 text-white' }
+              ].map((f) => (
+                <button 
+                  key={f.id}
+                  onClick={() => setFilterFrozen(f.id as any)}
+                  className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-2 ${filterFrozen === f.id ? f.activeColor + ' shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  {f.icon}
+                  <span>{f.label}</span>
                 </button>
               ))}
             </div>
@@ -383,13 +410,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             </div>
           </div>
 
-          <button 
-            onClick={() => setIsNewVagaModalOpen(true)}
-            className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-8 py-3.5 rounded-xl flex items-center justify-center font-black text-xs tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-3 w-full lg:w-auto"
-          >
-            <Plus size={20} strokeWidth={3} />
-            <span>Abrir Nova Vaga</span>
-          </button>
+          <div className="flex items-center space-x-4">
+            {counts.frozen > 0 && (
+              <div className="bg-blue-50 border-2 border-blue-200 px-6 py-3 rounded-2xl flex items-center space-x-3 shadow-sm animate-pulse">
+                <Snowflake size={20} className="text-blue-600" />
+                <div>
+                  <p className="text-[9px] font-black text-blue-400 uppercase leading-none">Vagas Congeladas</p>
+                  <p className="text-xl font-black text-blue-700 leading-none">{counts.frozen}</p>
+                </div>
+              </div>
+            )}
+            <button 
+              onClick={() => setIsNewVagaModalOpen(true)}
+              className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-8 py-3.5 rounded-xl flex items-center justify-center font-black text-xs tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-3 w-full lg:w-auto"
+            >
+              <Plus size={20} strokeWidth={3} />
+              <span>Abrir Nova Vaga</span>
+            </button>
+          </div>
         </div>
 
         {/* FILTROS DE UNIDADE E CRIADOR (COINS) */}
@@ -531,7 +569,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                 <tbody className="bg-white divide-y divide-gray-100">
                   {processedVagas.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-8 py-24 text-center">
+                      <td colSpan={10} className="px-8 py-24 text-center">
                         <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                            <AlertCircle size={48} />
                            <p className="font-bold uppercase tracking-widest text-xs">
@@ -543,14 +581,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                   ) : (
                     processedVagas.map((vaga) => {
                       const hasCreator = vaga['usuário_criador'] && vaga['usuário_criador'].trim() !== '';
+                      const isFrozen = vaga.CONGELADA && !vaga.FECHAMENTO;
+                      
                       return (
                         <tr 
                           key={vaga.id} 
-                          className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
+                          className={`cursor-pointer transition-colors group ${isFrozen ? 'bg-blue-50/60 hover:bg-blue-100/80 border-l-4 border-blue-500' : 'hover:bg-gray-50/80'}`}
                           onClick={() => setSelectedVagaForDetails(vaga)}
                         >
                           <td className="px-6 py-6">
-                            <span className="px-3 py-1.5 bg-gray-100 rounded-lg text-xs font-black text-gray-900 border border-gray-200 shadow-sm">
+                            <span className={`px-3 py-1.5 rounded-lg text-xs font-black shadow-sm border ${isFrozen ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-900 border-gray-200'}`}>
                               {vaga.VAGA || '---'}
                             </span>
                           </td>
@@ -559,7 +599,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
                           </td>
                           <td className="px-8 py-6">
-                            <div className="text-sm font-bold text-[#e31e24] uppercase italic">{vaga.CARGO}</div>
+                            <div className={`text-sm font-bold uppercase italic ${isFrozen ? 'text-blue-700' : 'text-[#e31e24]'}`}>{vaga.CARGO}</div>
                             <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
                             <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
                           </td>
@@ -610,6 +650,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                                   <CheckCircle size={10} />
                                   <span>Finalizada</span>
                                 </span>
+                              ) : isFrozen ? (
+                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest border border-blue-200 w-fit">
+                                  <Snowflake size={10} />
+                                  <span>Congelada</span>
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
                                   <AlertCircle size={10} />
@@ -636,7 +681,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                               <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
                                 <Eye size={18} />
                               </button>
-                              {!vaga.FECHAMENTO && (
+                              {/* Alterado: Vaga congelada não pode ser finalizada na tabela */}
+                              {!vaga.FECHAMENTO && !vaga.CONGELADA && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -646,6 +692,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                                 >
                                   Finalizar
                                 </button>
+                              )}
+                              {isFrozen && (
+                                <div className="p-2 text-blue-400 cursor-not-allowed" title="Vaga Congelada - Descongele para finalizar">
+                                  <Lock size={18} />
+                                </div>
                               )}
                             </div>
                           </td>
@@ -665,8 +716,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           Reiterlog Logística • Tecnologia de Gestão de Talentos
         </p>
       </footer>
-
-      {/* MODAL DE VÍNCULO DE CRIADOR */}
+      {/* ... restos do componente mantidos ... */}
       {vagaToAssignCreator && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
           <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden border-t-[12px] border-[#adff2f] transform transition-all animate-in zoom-in duration-300">

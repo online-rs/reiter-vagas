@@ -7,7 +7,7 @@ import {
   Settings, Filter, Briefcase, MapPin, Loader2, Info,
   History, ShieldAlert, Hash, UserCircle, AlertTriangle,
   CheckSquare, Square, Layers, UserCheck, ChevronDown,
-  RefreshCw, Play
+  RefreshCw, Play, Snowflake, MessageSquare
 } from 'lucide-react';
 
 interface AdminManagementProps {
@@ -21,6 +21,8 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
   const [unidades, setUnidades] = useState<any[]>([]);
   const [allSetores, setAllSetores] = useState<string[]>([]);
   const [allGestores, setAllGestores] = useState<string[]>([]);
+  const [allTiposCargo, setAllTiposCargo] = useState<string[]>([]);
+  const [allCargos, setAllCargos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   
@@ -30,10 +32,13 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
   // Filter Draft states (inputs)
   const [searchDraft, setSearchDraft] = useState('');
   const [statusDraft, setStatusDraft] = useState<'all' | 'open' | 'closed'>('all');
+  const [frozenDraft, setFrozenDraft] = useState<'all' | 'frozen' | 'not_frozen'>('all');
   const [creatorDraft, setCreatorDraft] = useState<string>('all');
   const [unidadeDraft, setUnidadeDraft] = useState<string>('all');
   const [setorDraft, setSetorDraft] = useState<string>('all');
   const [gestorDraft, setGestorDraft] = useState<string>('all');
+  const [tipoCargoDraft, setTipoCargoDraft] = useState<string>('all');
+  const [cargoSpecificDraft, setCargoSpecificDraft] = useState<string>('all');
   
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(true);
 
@@ -57,7 +62,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     const [profilesRes, unitsRes, metadataRes] = await Promise.all([
       supabase.from('profiles').select('username, full_name'),
       supabase.from('unidades').select('nome'),
-      supabase.from('vagas').select('SETOR, GESTOR')
+      supabase.from('vagas').select('SETOR, GESTOR, TIPO_CARGO, CARGO')
     ]);
 
     if (!profilesRes.error) setProfiles(profilesRes.data);
@@ -66,8 +71,13 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     if (!metadataRes.error && metadataRes.data) {
       const setores = Array.from(new Set(metadataRes.data.map(v => v.SETOR))).filter(Boolean).sort() as string[];
       const gestores = Array.from(new Set(metadataRes.data.map(v => v.GESTOR))).filter(Boolean).sort() as string[];
+      const tiposCargo = Array.from(new Set(metadataRes.data.map(v => v.TIPO_CARGO))).filter(Boolean).sort() as string[];
+      const cargos = Array.from(new Set(metadataRes.data.map(v => v.CARGO))).filter(Boolean).sort() as string[];
+      
       setAllSetores(setores);
       setAllGestores(gestores);
+      setAllTiposCargo(tiposCargo);
+      setAllCargos(cargos);
     }
   };
 
@@ -81,9 +91,11 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       if (isInitial) {
         query = query.limit(10);
       } else {
-        // Apply Filters directly in the query for better performance
         if (statusDraft === 'open') query = query.is('FECHAMENTO', null);
         if (statusDraft === 'closed') query = query.not('FECHAMENTO', 'is', null);
+
+        if (frozenDraft === 'frozen') query = query.eq('CONGELADA', true);
+        if (frozenDraft === 'not_frozen') query = query.eq('CONGELADA', false);
 
         if (creatorDraft === 'empty') query = query.or('usuário_criador.is.null,usuário_criador.eq.""');
         else if (creatorDraft !== 'all') query = query.eq('usuário_criador', creatorDraft);
@@ -91,6 +103,8 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         if (unidadeDraft !== 'all') query = query.eq('UNIDADE', unidadeDraft);
         if (setorDraft !== 'all') query = query.eq('SETOR', setorDraft);
         if (gestorDraft !== 'all') query = query.eq('GESTOR', gestorDraft);
+        if (tipoCargoDraft !== 'all') query = query.eq('TIPO_CARGO', tipoCargoDraft);
+        if (cargoSpecificDraft !== 'all') query = query.eq('CARGO', cargoSpecificDraft);
 
         if (searchDraft) {
           query = query.or(`CARGO.ilike.%${searchDraft}%,UNIDADE.ilike.%${searchDraft}%,SETOR.ilike.%${searchDraft}%,GESTOR.ilike.%${searchDraft}%`);
@@ -104,11 +118,11 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       setLoading(false);
       setSearching(false);
     }
-  }, [searchDraft, statusDraft, creatorDraft, unidadeDraft, setorDraft, gestorDraft]);
+  }, [searchDraft, statusDraft, frozenDraft, creatorDraft, unidadeDraft, setorDraft, gestorDraft, tipoCargoDraft, cargoSpecificDraft]);
 
   useEffect(() => {
     fetchMetadata();
-    handleSearch(true); // Initial load: last 10
+    handleSearch(true);
   }, []);
 
   const toggleSelectAll = () => {
@@ -156,14 +170,14 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     const fieldsToCompare: (keyof Vaga)[] = [
       'CARGO', 'UNIDADE', 'SETOR', 'GESTOR', 'GERENTE', 
       'TIPO', 'TIPO_CARGO', 'NOME_SUBSTITUIDO', 'NOME_SUBSTITUICAO', 
-      'usuário_criador', 'RECRUTADOR', 'VAGA'
+      'usuário_criador', 'RECRUTADOR', 'VAGA', 'CONGELADA', 'usuario_fechador'
     ];
 
     fieldsToCompare.forEach(field => {
       const oldVal = selectedVaga[field];
       const newVal = editFormData[field as keyof typeof editFormData];
       if (oldVal !== newVal) {
-        logs.push(`${dateStr} [AUDIT/ADMIN]: ${user.username} alterou ${field} de "${oldVal || 'VAZIO'}" para "${newVal || 'VAZIO'}"`);
+        logs.push(`${dateStr} [AUDIT/ADMIN]: ${user.username} alterou ${field} de "${oldVal === undefined ? 'VAZIO' : oldVal}" para "${newVal === undefined ? 'VAZIO' : newVal}"`);
       }
     });
 
@@ -194,16 +208,30 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       const currentVaga = vagas.find(v => v.id === id);
       if (!currentVaga) continue;
 
+      const isFreezeField = bulkField === 'CONGELADA';
+      const newVal = isFreezeField ? bulkValue === 'true' : bulkValue;
       const oldVal = currentVaga[bulkField as keyof Vaga];
-      const log = `${dateStr} [AUDIT/BULK]: ${user.username} alterou EM BLOCO o campo ${bulkField} de "${oldVal || 'VAZIO'}" para "${bulkValue}"`;
+      
+      const logLabel = isFreezeField 
+        ? (newVal ? 'CONGELOU' : 'DESCONGELOU')
+        : `alterou o campo ${bulkField} de "${oldVal === undefined ? 'VAZIO' : oldVal}" para "${bulkValue}"`;
+
+      const log = `${dateStr} [AUDIT/BULK]: ${user.username} ${logLabel} esta vaga em uma ação em bloco.`;
       const updatedObservations = [...(currentVaga.OBSERVACOES || []), log];
+
+      // Se estiver alterando o usuário fechador, também atualizamos o campo RECRUTADOR por compatibilidade
+      const updatePayload: any = {
+        [bulkField]: newVal,
+        OBSERVACOES: updatedObservations
+      };
+
+      if (bulkField === 'usuario_fechador') {
+        updatePayload.RECRUTADOR = newVal;
+      }
 
       const { error } = await supabase
         .from('vagas')
-        .update({
-          [bulkField]: bulkValue,
-          OBSERVACOES: updatedObservations
-        })
+        .update(updatePayload)
         .eq('id', id);
       
       if (error) errors.push(error);
@@ -256,7 +284,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       </header>
 
       <main className="flex-1 p-8 lg:p-12 space-y-6">
-        {/* Filters Panel */}
         <div className="bg-white rounded-[30px] shadow-xl p-8 border-2 border-gray-100 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4">
              {searching && <Loader2 className="animate-spin text-[#e31e24]" size={20} />}
@@ -304,6 +331,38 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
 
                 <select 
                   className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase cursor-pointer"
+                  value={frozenDraft}
+                  onChange={(e) => setFrozenDraft(e.target.value as any)}
+                >
+                  <option value="all">FLUXO: TODOS</option>
+                  <option value="frozen">FLUXO: CONGELADAS</option>
+                  <option value="not_frozen">FLUXO: NORMAIS</option>
+                </select>
+
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase cursor-pointer"
+                  value={tipoCargoDraft}
+                  onChange={(e) => setTipoCargoDraft(e.target.value)}
+                >
+                  <option value="all">TIPO CARGO: TODOS</option>
+                  {allTiposCargo.map(tc => (
+                    <option key={tc} value={tc}>{tc.toUpperCase()}</option>
+                  ))}
+                </select>
+
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase cursor-pointer"
+                  value={cargoSpecificDraft}
+                  onChange={(e) => setCargoSpecificDraft(e.target.value)}
+                >
+                  <option value="all">CARGO: TODOS</option>
+                  {allCargos.map(c => (
+                    <option key={c} value={c}>{c.toUpperCase()}</option>
+                  ))}
+                </select>
+
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase cursor-pointer"
                   value={creatorDraft}
                   onChange={(e) => setCreatorDraft(e.target.value)}
                 >
@@ -347,14 +406,14 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                   ))}
                 </select>
 
-                <div className="lg:col-span-2 flex justify-end">
+                <div className="lg:col-span-4 flex justify-end mt-4">
                    <button 
                      onClick={() => handleSearch(false)}
                      disabled={searching}
-                     className="bg-black text-[#adff2f] px-10 py-3 rounded-xl flex items-center space-x-3 font-black text-xs uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-xl active:scale-95 disabled:opacity-50"
+                     className="bg-black text-[#adff2f] px-12 py-4 rounded-xl flex items-center space-x-3 font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-xl active:scale-95 disabled:opacity-50"
                    >
-                     {searching ? <Loader2 className="animate-spin" size={18} /> : <Play size={18} fill="currentColor" />}
-                     <span>Aplicar Filtros e Buscar</span>
+                     {searching ? <Loader2 className="animate-spin" size={20} /> : <Play size={20} fill="currentColor" />}
+                     <span>Aplicar Filtros e Buscar Agora</span>
                    </button>
                 </div>
               </>
@@ -362,7 +421,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
           </div>
         </div>
 
-        {/* Data Table */}
         <div className="bg-white rounded-[40px] shadow-2xl border-2 border-gray-100 overflow-hidden relative">
           {loading && (
             <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-4">
@@ -387,17 +445,20 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                   <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5 w-24">ID/Vaga</th>
                   <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5">Cargo / Unidade</th>
                   <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5">Responsáveis</th>
-                  <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5">Status</th>
-                  <th className="px-8 py-6 text-right text-[11px] font-black uppercase tracking-widest text-[#adff2f]">Ações Admin</th>
+                  <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5 max-w-xs">Observações</th>
+                  <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest border-r border-white/5 w-32">Status</th>
+                  <th className="px-8 py-6 text-right text-[11px] font-black uppercase tracking-widest text-[#adff2f] w-32">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-gray-50">
                 {vagas.map((vaga) => {
                   const isSelected = selectedIds.includes(vaga.id);
+                  const isFrozen = vaga.CONGELADA && !vaga.FECHAMENTO;
+                  
                   return (
                     <tr 
                       key={vaga.id} 
-                      className={`transition-colors group ${isSelected ? 'bg-red-50/50' : 'hover:bg-gray-50'}`}
+                      className={`transition-colors group ${isSelected ? 'bg-red-50/50' : isFrozen ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
                     >
                       <td className="px-6 py-6 border-r border-gray-100 text-center">
                         <button 
@@ -408,22 +469,47 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                         </button>
                       </td>
                       <td className="px-6 py-6">
-                         <span className="bg-gray-100 px-3 py-1 rounded-lg font-black text-xs border border-gray-200">#{vaga.VAGA || vaga.id}</span>
+                         <span className={`px-3 py-1 rounded-lg font-black text-xs border ${isFrozen ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-900 border-gray-200'}`}>
+                           #{vaga.VAGA || vaga.id}
+                         </span>
                       </td>
                       <td className="px-8 py-6">
-                        <div className="font-black text-black uppercase italic leading-tight">{vaga.CARGO}</div>
+                        <div className={`font-black uppercase italic leading-tight ${isFrozen ? 'text-blue-700' : 'text-black'}`}>{vaga.CARGO}</div>
                         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 flex items-center">
                           <MapPin size={10} className="mr-1" /> {vaga.UNIDADE} • {vaga.SETOR}
                         </div>
+                        <div className="text-[9px] font-black text-[#e31e24] uppercase mt-1">Tipo: {vaga.TIPO_CARGO}</div>
                       </td>
                       <td className="px-8 py-6">
                          <div className="text-[10px] font-black text-gray-500 uppercase">Criador: <span className="text-black">{vaga['usuário_criador'] || '---'}</span></div>
-                         <div className="text-[10px] font-black text-gray-400 uppercase mt-1">Recrutador: <span className="text-[#e31e24]">{vaga.RECRUTADOR || '---'}</span></div>
+                         <div className="text-[10px] font-black text-gray-400 uppercase mt-1">Fechador: <span className="text-[#e31e24]">{vaga.usuario_fechador || '---'}</span></div>
                          <div className="text-[9px] font-bold text-gray-300 uppercase">Gestor: {vaga.GESTOR}</div>
+                      </td>
+                      <td className="px-8 py-6">
+                         <div className="max-h-24 overflow-y-auto custom-scrollbar-thin">
+                            <div className="space-y-1.5">
+                               {(vaga.OBSERVACOES || []).slice().reverse().map((obs, i) => (
+                                 <div key={i} className="flex items-start space-x-2 border-b border-gray-50 last:border-0 pb-1">
+                                    <div className="w-1 h-1 rounded-full bg-gray-300 mt-1.5 shrink-0"></div>
+                                    <p className="text-[9px] font-bold text-gray-500 leading-tight">
+                                       {obs}
+                                    </p>
+                                 </div>
+                               ))}
+                               {(!vaga.OBSERVACOES || vaga.OBSERVACOES.length === 0) && (
+                                 <span className="text-[9px] font-bold text-gray-300 uppercase italic">Sem observações</span>
+                               )}
+                            </div>
+                         </div>
                       </td>
                       <td className="px-8 py-6">
                          {vaga.FECHAMENTO ? (
                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase border border-green-200">Finalizada</span>
+                         ) : isFrozen ? (
+                           <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase border border-blue-200 flex items-center w-fit space-x-1">
+                             <Snowflake size={10} />
+                             <span>Congelada</span>
+                           </span>
                          ) : (
                            <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-[9px] font-black uppercase border border-orange-200">Em Aberto</span>
                          )}
@@ -450,23 +536,10 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
               </tbody>
             </table>
           </div>
-          {!loading && vagas.length === 0 && (
-            <div className="py-20 text-center flex flex-col items-center justify-center opacity-30">
-               <AlertCircle size={48} className="mb-4" />
-               <p className="font-black uppercase tracking-widest text-xs">Nenhum registro encontrado para os filtros.</p>
-            </div>
-          )}
-          {!loading && vagas.length > 0 && (
-             <div className="p-6 bg-gray-50 border-t border-gray-100 text-center">
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest italic">Exibindo {vagas.length} registros</p>
-             </div>
-          )}
         </div>
       </main>
 
-      {/* MODAL: BULK EDIT, BULK CONFIRM, SINGLE EDIT, DELETE CONFIRMATION (REMAIN THE SAME BUT USE handleSearch(false) ON SUCCESS) */}
-      
-      {/* BULK EDIT */}
+      {/* MODAL: BULK EDIT */}
       {isBulkEditModalOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
           <div className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden border-t-[12px] border-[#adff2f] transform transition-all animate-in zoom-in duration-300">
@@ -493,15 +566,17 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                       }}
                     >
                       <option value="usuário_criador">Usuário Criador</option>
+                      <option value="usuario_fechador">Usuário Fechador (Recrutador)</option>
                       <option value="GESTOR">Gestor Responsável</option>
                       <option value="GERENTE">Gerente Responsável</option>
                       <option value="UNIDADE">Unidade Operacional</option>
+                      <option value="CONGELADA">Fluxo (Congelar/Descongelar)</option>
                     </select>
                   </div>
 
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Novo Valor</label>
-                    {bulkField === 'usuário_criador' ? (
+                    {bulkField === 'usuário_criador' || bulkField === 'usuario_fechador' ? (
                       <select 
                         className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-black text-sm focus:border-black outline-none"
                         value={bulkValue}
@@ -518,6 +593,16 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                       >
                         <option value="">SELECIONE UMA UNIDADE...</option>
                         {unidades.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
+                      </select>
+                    ) : bulkField === 'CONGELADA' ? (
+                      <select 
+                        className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl font-black text-sm focus:border-black outline-none"
+                        value={bulkValue}
+                        onChange={(e) => setBulkValue(e.target.value)}
+                      >
+                        <option value="">SELECIONE O ESTADO...</option>
+                        <option value="true">ATIVAR CONGELAMENTO</option>
+                        <option value="false">REMOVER CONGELAMENTO</option>
                       </select>
                     ) : (
                       <input 
@@ -567,14 +652,14 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                   Campo: <span className="text-[#adff2f]">{bulkField}</span>
                 </div>
                 <div className="p-3 bg-black text-white rounded-xl text-xs font-bold uppercase">
-                  Novo Valor: <span className="text-[#adff2f]">{bulkValue}</span>
+                  Novo Valor: <span className="text-[#adff2f]">{bulkField === 'CONGELADA' ? (bulkValue === 'true' ? 'CONGELAR VAGAS' : 'DESCONGELAR VAGAS') : bulkValue}</span>
                 </div>
                 <div className="p-3 bg-[#adff2f] text-black rounded-xl text-xs font-black uppercase">
                   Vagas Afetadas: {selectedIds.length} un.
                 </div>
               </div>
               <p className="text-[10px] font-black text-red-600 uppercase tracking-tight mb-8">
-                Esta ação será auditada e vinculada ao seu usuário.
+                Esta ação será auditada e vinculada ao seu usuário em cada vaga.
               </p>
               <div className="grid grid-cols-2 gap-4 w-full">
                 <button 
@@ -686,6 +771,17 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                             />
                          </div>
                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Estado de Fluxo</label>
+                            <select 
+                               className="w-full bg-white border-2 border-gray-200 p-4 rounded-2xl font-black text-sm focus:border-black outline-none"
+                               value={editFormData.CONGELADA ? 'true' : 'false'}
+                               onChange={(e) => setEditFormData({...editFormData, CONGELADA: e.target.value === 'true'})}
+                            >
+                               <option value="false">FLUXO NORMAL</option>
+                               <option value="true">VAGA CONGELADA</option>
+                            </select>
+                         </div>
+                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Usuário Criador (Login)</label>
                             <select 
                                className="w-full bg-white border-2 border-gray-200 p-4 rounded-2xl font-black text-sm focus:border-black outline-none"
@@ -697,11 +793,11 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                             </select>
                          </div>
                          <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Recrutador Fechador (Login)</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Usuário Fechador (Recrutador)</label>
                             <select 
                                className="w-full bg-white border-2 border-gray-200 p-4 rounded-2xl font-black text-sm focus:border-black outline-none"
-                               value={editFormData.RECRUTADOR || ''}
-                               onChange={(e) => setEditFormData({...editFormData, RECRUTADOR: e.target.value})}
+                               value={editFormData.usuario_fechador || ''}
+                               onChange={(e) => setEditFormData({...editFormData, usuario_fechador: e.target.value})}
                             >
                                <option value="">NÃO INFORMADO</option>
                                {profiles.map(p => <option key={p.username} value={p.username}>{p.username}</option>)}
@@ -772,6 +868,9 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e31e24; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #000; }
+        .custom-scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar-thin::-webkit-scrollbar-track { background: rgba(0,0,0,0.02); }
+        .custom-scrollbar-thin::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
       `}</style>
     </div>
   );

@@ -5,7 +5,8 @@ import { Vaga, User } from '../types';
 import { 
   ArrowLeft, BarChart2, Filter, Clock, 
   ChevronDown, X, Eye, UserCheck, TrendingUp, LayoutGrid,
-  CalendarRange, PieChart as PieChartIcon, ChevronRight, ChevronsDownUp, ChevronsUpDown
+  CalendarRange, PieChart as PieChartIcon, ChevronRight, ChevronsDownUp, ChevronsUpDown,
+  Snowflake, Flame, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import VagaDetailsModal from './VagaDetailsModal';
 
@@ -17,6 +18,7 @@ interface IndicatorsProps {
 const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showFrozenColumn, setShowFrozenColumn] = useState(false);
   
   // Controle de Expansão do Mapa Geral (Unidades)
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
@@ -47,7 +49,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
     const { data, error } = await supabase.from('vagas').select('*');
     if (!error && data) {
       setVagas(data);
-      const openVagas = data.filter(v => !v.FECHAMENTO);
+      const openVagas = data.filter(v => !v.FECHAMENTO && !v.CONGELADA);
       const r = Array.from(new Set(openVagas.map(v => v['usuário_criador'] || v.RECRUTADOR || 'NÃO INFORMADO'))).filter(Boolean) as string[];
       setSelectedRecrutadores(r);
       const t = Array.from(new Set(openVagas.map(v => v.TURNO))).filter(Boolean) as string[];
@@ -60,15 +62,21 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
     fetchData();
   }, []);
 
-  const allOpenVagas = useMemo(() => vagas.filter(v => !v.FECHAMENTO), [vagas]);
+  // Base para o Mapa: Inclui tudo o que não está fechado (ativas + congeladas)
+  const allOpenVagasForMap = useMemo(() => vagas.filter(v => !v.FECHAMENTO), [vagas]);
+  
+  // Base para Indicadores: Apenas o fluxo normal (não fechadas e não congeladas)
+  const activeOpenVagas = useMemo(() => vagas.filter(v => !v.FECHAMENTO && !v.CONGELADA), [vagas]);
+
+  const totalFrozenCount = useMemo(() => vagas.filter(v => !v.FECHAMENTO && v.CONGELADA).length, [vagas]);
 
   const filterOptions = useMemo(() => {
-    const active = allOpenVagas;
+    const active = activeOpenVagas;
     return {
       recrutadores: Array.from(new Set(active.map(v => v['usuário_criador'] || v.RECRUTADOR || 'NÃO INFORMADO'))).filter(Boolean).sort(),
       turnos: Array.from(new Set(active.map(v => v.TURNO))).filter(Boolean).sort()
     };
-  }, [allOpenVagas]);
+  }, [activeOpenVagas]);
 
   const toggleFilter = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
     setList(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
@@ -89,40 +97,55 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
   // Pivot Data para o Mapa Geral
   const pivotData = useMemo(() => {
     const tree: any = {};
-    allOpenVagas.forEach(v => {
+    allOpenVagasForMap.forEach(v => {
       const tc = v.TIPO_CARGO || 'Outras Funções';
       const un = v.UNIDADE || 'N/A';
       const set = v.SETOR || 'N/A';
-      const tipo = v.TIPO === 'Aumento de Quadro' ? 'aumento' : 'substituicao';
+      
+      let tipo: string;
+      if (v.CONGELADA) {
+        tipo = 'congelada';
+      } else {
+        tipo = v.TIPO === 'Aumento de Quadro' ? 'aumento' : 'substituicao';
+      }
 
-      if (!tree[tc]) tree[tc] = { units: {}, totalAumento: 0, totalSub: 0, totalGeral: 0 };
-      if (!tree[tc].units[un]) tree[tc].units[un] = { sectors: {}, totalAumento: 0, totalSub: 0, totalGeral: 0 };
-      if (!tree[tc].units[un].sectors[set]) tree[tc].units[un].sectors[set] = { aumento: 0, substituicao: 0, items: [] };
+      if (!tree[tc]) tree[tc] = { units: {}, totalAumento: 0, totalSub: 0, totalCong: 0, totalGeral: 0 };
+      if (!tree[tc].units[un]) tree[tc].units[un] = { sectors: {}, totalAumento: 0, totalSub: 0, totalCong: 0, totalGeral: 0 };
+      if (!tree[tc].units[un].sectors[set]) tree[tc].units[un].sectors[set] = { aumento: 0, substituicao: 0, congelada: 0, items: [] };
 
       tree[tc].units[un].sectors[set][tipo]++;
       tree[tc].units[un].sectors[set].items.push(v);
       
       tree[tc].units[un].totalAumento = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.aumento, 0);
       tree[tc].units[un].totalSub = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.substituicao, 0);
-      tree[tc].units[un].totalGeral = tree[tc].units[un].totalAumento + tree[tc].units[un].totalSub;
+      tree[tc].units[un].totalCong = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.congelada, 0);
+      tree[tc].units[un].totalGeral = tree[tc].units[un].totalAumento + tree[tc].units[un].totalSub + (showFrozenColumn ? tree[tc].units[un].totalCong : 0);
       
       tree[tc].totalAumento = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalAumento, 0);
       tree[tc].totalSub = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalSub, 0);
-      tree[tc].totalGeral = tree[tc].totalAumento + tree[tc].totalSub;
+      tree[tc].totalCong = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalCong, 0);
+      tree[tc].totalGeral = tree[tc].totalAumento + tree[tc].totalSub + (showFrozenColumn ? tree[tc].totalCong : 0);
     });
     return tree;
-  }, [allOpenVagas]);
+  }, [allOpenVagasForMap, showFrozenColumn]);
 
   // Totais Gerais para a última linha da tabela
   const grandTotals = useMemo(() => {
     let aum = 0;
     let sub = 0;
+    let cong = 0;
     Object.values(pivotData).forEach((cargoData: any) => {
       aum += cargoData.totalAumento;
       sub += cargoData.totalSub;
+      cong += cargoData.totalCong;
     });
-    return { aum, sub, total: aum + sub };
-  }, [pivotData]);
+    return { 
+      aum, 
+      sub, 
+      cong, 
+      total: aum + sub + (showFrozenColumn ? cong : 0) 
+    };
+  }, [pivotData, showFrozenColumn]);
 
   const allUnitNames = useMemo(() => {
     const names: string[] = [];
@@ -152,19 +175,19 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
 
   const pieChartData = useMemo(() => {
     const counts: Record<string, Vaga[]> = {};
-    allOpenVagas.forEach(v => {
+    activeOpenVagas.forEach(v => {
       const cargo = v.TIPO_CARGO || 'Outras Funções';
       if (!counts[cargo]) counts[cargo] = [];
       counts[cargo].push(v);
     });
-    const total = allOpenVagas.length;
+    const total = activeOpenVagas.length;
     return Object.entries(counts).map(([name, items]) => ({
       name,
       items,
       count: items.length,
       percent: total > 0 ? ((items.length / total) * 100).toFixed(1) : '0'
     })).sort((a, b) => b.count - a.count);
-  }, [allOpenVagas]);
+  }, [activeOpenVagas]);
 
   const fechamentosPorUsuario = useMemo(() => {
     const stats: Record<string, Vaga[]> = {};
@@ -178,7 +201,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
 
   const agingStats = useMemo(() => {
     const ranges = { '0-15 DIAS': 0, '16-30 DIAS': 0, '31-45 DIAS': 0, '45+ DIAS': 0 };
-    allOpenVagas.forEach(v => {
+    activeOpenVagas.forEach(v => {
       const start = new Date(v.ABERTURA);
       const diff = Math.ceil(Math.abs(new Date().getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       if (diff <= 15) ranges['0-15 DIAS']++;
@@ -187,7 +210,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
       else ranges['45+ DIAS']++;
     });
     return Object.entries(ranges);
-  }, [allOpenVagas]);
+  }, [activeOpenVagas]);
 
   const closingAgingStats = useMemo(() => {
     const ranges: Record<string, Vaga[]> = { '0-15 DIAS': [], '16-30 DIAS': [], '31-45 DIAS': [], '45+ DIAS': [] };
@@ -209,7 +232,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
   };
 
   const renderPieChart = () => {
-    if (pieChartData.length === 0) return <div className="text-gray-300 italic py-10 text-center uppercase font-black text-[10px]">Sem dados</div>;
+    if (pieChartData.length === 0) return <div className="text-gray-300 italic py-10 text-center uppercase font-black text-[10px]">Sem dados de fluxo normal</div>;
     let cumulativePercent = 0;
     const colors = ['#e31e24', '#000000', '#adff2f', '#666666', '#ff4500', '#4169e1'];
     return (
@@ -230,7 +253,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                 fill={colors[i % colors.length]} 
                 transform="translate(50, 50) scale(40)"
                 className="cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => handleShowVagas(item.items, `Vagas Abertas: ${item.name}`)}
+                onClick={() => handleShowVagas(item.items, `Vagas em Fluxo: ${item.name}`)}
               />
             );
           })}
@@ -283,7 +306,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
             <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-3">
                 <Filter size={20} className="text-[#adff2f]" />
-                <span className="font-black uppercase tracking-widest text-xs italic">Filtros de Perfil & Performance (Ranking e Lead Time)</span>
+                <span className="font-black uppercase tracking-widest text-xs italic">Filtros de Perfil & Performance (Ativas & Fechadas)</span>
               </div>
             </div>
             <ChevronDown size={24} className={`transition-transform duration-300 ${isFilterOpen ? 'rotate-180' : ''}`} />
@@ -293,7 +316,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
             <div className="p-10 bg-gray-50 border-t border-gray-200 animate-in slide-in-from-top-2 space-y-10">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 block border-b pb-2">Recrutador / Criador</label>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 block border-b pb-2">Recrutador / Criador (Fluxo Ativo)</label>
                   <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
                     {filterOptions.recrutadores.map(r => (
                       <button
@@ -307,7 +330,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 block border-b pb-2">Turno de Trabalho</label>
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-4 block border-b pb-2">Turno de Trabalho (Fluxo Ativo)</label>
                   <div className="flex flex-wrap gap-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
                     {filterOptions.turnos.map(t => (
                       <button
@@ -336,7 +359,19 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
               </div>
             </div>
             
-            <div className="flex space-x-2">
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setShowFrozenColumn(!showFrozenColumn)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${showFrozenColumn ? 'bg-blue-50 border-blue-600 text-blue-700' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'}`}
+                title="Exibir/Ocultar Vagas Congeladas no Mapa"
+              >
+                <Snowflake size={14} className={showFrozenColumn ? 'animate-spin-slow' : ''} />
+                <span>Congeladas</span>
+                {showFrozenColumn ? <ToggleRight size={20} className="text-blue-600" /> : <ToggleLeft size={20} />}
+              </button>
+
+              <div className="w-[1px] h-6 bg-gray-200 mx-2"></div>
+
               <button 
                 onClick={handleExpandAll}
                 className="flex items-center space-x-2 px-4 py-2 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#e31e24] transition-all"
@@ -360,9 +395,12 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                 <thead>
                   <tr className="bg-black text-white">
                     <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest italic border-r border-white/5">Estrutura Hierárquica (Filial / Setor)</th>
-                    <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest italic text-center border-r border-white/5 w-40">Aumento de Quadro</th>
-                    <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest italic text-center border-r border-white/5 w-40">Substituição</th>
-                    <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest italic text-center text-[#adff2f] w-40 bg-gray-900">Total Geral</th>
+                    <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest italic text-center border-r border-white/5 w-36">Aumento de Quadro</th>
+                    <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest italic text-center border-r border-white/5 w-36">Substituição</th>
+                    {showFrozenColumn && (
+                      <th className="px-6 py-6 text-[11px] font-black uppercase tracking-widest italic text-center border-r border-white/5 w-36 bg-blue-900/50">Congeladas</th>
+                    )}
+                    <th className="px-8 py-6 text-[11px] font-black uppercase tracking-widest italic text-center text-[#adff2f] w-36 bg-gray-900">Total Geral</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -374,6 +412,9 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                         </td>
                         <td className="px-6 py-4 text-center font-black text-[#e31e24] text-lg">{cargoData.totalAumento}</td>
                         <td className="px-6 py-4 text-center font-black text-[#e31e24] text-lg">{cargoData.totalSub}</td>
+                        {showFrozenColumn && (
+                          <td className="px-6 py-4 text-center font-black text-blue-600 text-lg bg-blue-50/30">{cargoData.totalCong}</td>
+                        )}
                         <td className="px-8 py-4 text-center font-black text-black text-xl bg-gray-200/50">{cargoData.totalGeral}</td>
                       </tr>
                       {Object.entries(cargoData.units).map(([unidade, unitData]: [string, any]) => (
@@ -388,6 +429,9 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                               </td>
                               <td className="px-6 py-3 text-center text-sm font-bold text-gray-500">{unitData.totalAumento}</td>
                               <td className="px-6 py-3 text-center text-sm font-bold text-gray-500">{unitData.totalSub}</td>
+                              {showFrozenColumn && (
+                                <td className="px-6 py-3 text-center text-sm font-bold text-blue-400 bg-blue-50/10">{unitData.totalCong}</td>
+                              )}
                               <td className="px-8 py-3 text-center text-sm font-black text-black bg-gray-100/30">{unitData.totalGeral}</td>
                            </tr>
                            {expandedUnits.has(unidade) && Object.entries(unitData.sectors).map(([setor, sectorData]: [string, any]) => (
@@ -400,21 +444,29 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                                 </td>
                                 <td 
                                   className="px-6 py-2 text-center text-xs font-black text-gray-300 cursor-pointer hover:bg-white transition-all hover:text-[#e31e24]"
-                                  onClick={() => sectorData.aumento > 0 && handleShowVagas(sectorData.items.filter((v:any) => v.TIPO === 'Aumento de Quadro'), `${unidade} > ${setor} - Aumento`)}
+                                  onClick={() => sectorData.aumento > 0 && handleShowVagas(sectorData.items.filter((v:any) => v.TIPO === 'Aumento de Quadro' && !v.CONGELADA), `${unidade} > ${setor} - Aumento`)}
                                 >
                                   {sectorData.aumento}
                                 </td>
                                 <td 
                                   className="px-6 py-2 text-center text-xs font-black text-gray-300 cursor-pointer hover:bg-white transition-all hover:text-[#e31e24]"
-                                  onClick={() => sectorData.substituicao > 0 && handleShowVagas(sectorData.items.filter((v:any) => v.TIPO === 'Substituição'), `${unidade} > ${setor} - Substituição`)}
+                                  onClick={() => sectorData.substituicao > 0 && handleShowVagas(sectorData.items.filter((v:any) => v.TIPO === 'Substituição' && !v.CONGELADA), `${unidade} > ${setor} - Substituição`)}
                                 >
                                   {sectorData.substituicao}
                                 </td>
+                                {showFrozenColumn && (
+                                  <td 
+                                    className="px-6 py-2 text-center text-xs font-black text-blue-200 cursor-pointer hover:bg-blue-50 transition-all hover:text-blue-600 bg-blue-50/5"
+                                    onClick={() => sectorData.congelada > 0 && handleShowVagas(sectorData.items.filter((v:any) => v.CONGELADA), `${unidade} > ${setor} - Congeladas`)}
+                                  >
+                                    {sectorData.congelada}
+                                  </td>
+                                )}
                                 <td 
                                   className="px-8 py-2 text-center text-xs font-black text-black bg-gray-50/50 cursor-pointer hover:bg-black hover:text-[#adff2f]"
                                   onClick={() => handleShowVagas(sectorData.items, `${unidade} > ${setor}`)}
                                 >
-                                  {sectorData.aumento + sectorData.substituicao}
+                                  {sectorData.aumento + sectorData.substituicao + (showFrozenColumn ? sectorData.congelada : 0)}
                                 </td>
                              </tr>
                            ))}
@@ -428,6 +480,9 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                     <td className="px-8 py-6 text-base font-black uppercase tracking-widest italic">TOTAL GERAL</td>
                     <td className="px-6 py-6 text-center text-2xl font-black">{grandTotals.aum}</td>
                     <td className="px-6 py-6 text-center text-2xl font-black">{grandTotals.sub}</td>
+                    {showFrozenColumn && (
+                      <td className="px-6 py-6 text-center text-2xl font-black text-blue-400 bg-blue-900/40">{grandTotals.cong}</td>
+                    )}
                     <td className="px-8 py-6 text-center text-3xl font-black bg-gray-900 shadow-inner">{grandTotals.total}</td>
                   </tr>
                 </tbody>
@@ -470,7 +525,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
           <div className="bg-white p-10 rounded-[40px] shadow-2xl border-2 border-gray-50 h-full flex flex-col items-center">
             <div className="flex items-center space-x-4 mb-10 w-full">
                <PieChartIcon className="text-white bg-black p-2 rounded-xl" size={36} />
-               <h2 className="text-xl font-black uppercase italic tracking-tighter">Proporção por Cargo</h2>
+               <h2 className="text-xl font-black uppercase italic tracking-tighter">Proporção (Fluxo Ativo)</h2>
             </div>
             {renderPieChart()}
           </div>
@@ -481,7 +536,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
             <div className="bg-white p-10 rounded-[40px] shadow-2xl border-2 border-gray-50">
               <div className="flex items-center space-x-4 mb-8">
                 <Clock className="text-[#e31e24]" size={28} />
-                <h2 className="text-xl font-black uppercase italic tracking-tighter">Aging Abertura</h2>
+                <h2 className="text-xl font-black uppercase italic tracking-tighter">Lead Time (Abertas)</h2>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 {agingStats.map(([range, count]) => (
@@ -499,7 +554,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                 <div className="flex items-center space-x-4">
                   <CalendarRange className="text-green-600" size={28} />
                   <div className="flex flex-col">
-                    <h2 className="text-xl font-black uppercase italic tracking-tighter leading-none">Lead Time</h2>
+                    <h2 className="text-xl font-black uppercase italic tracking-tighter leading-none">Tempo Processo</h2>
                     <span className="text-[9px] font-black text-green-700 uppercase tracking-widest mt-1">
                       Total: {filteredVagasFechadasPeriodo.length} un.
                     </span>
@@ -544,14 +599,25 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
         {/* RESUMO OPERACIONAL INFERIOR */}
         <div className="bg-black rounded-[40px] p-10 text-white shadow-2xl relative overflow-hidden border-b-[12px] border-[#adff2f]">
            <TrendingUp className="absolute -bottom-10 -right-10 text-[#adff2f]/10" size={200} />
-           <h3 className="text-[11px] font-black uppercase tracking-[0.4em] mb-6 text-[#adff2f]">Resumo Operacional</h3>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-10 relative z-10">
+           <h3 className="text-[11px] font-black uppercase tracking-[0.4em] mb-6 text-[#adff2f]">Resumo Operacional Global</h3>
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-10 relative z-10">
               <div>
-                <p className="text-[10px] font-black text-gray-500 uppercase">Vagas Abertas</p>
-                <p className="text-4xl font-black italic">{allOpenVagas.length}</p>
+                <p className="text-[10px] font-black text-gray-500 uppercase">Vagas em Fluxo (Ativas)</p>
+                <p className="text-4xl font-black italic">{activeOpenVagas.length}</p>
+              </div>
+              <div className="bg-blue-900/20 p-4 rounded-2xl border border-blue-500/30">
+                <p className="text-[10px] font-black text-blue-400 uppercase flex items-center space-x-2">
+                  <Snowflake size={12} />
+                  <span>Vagas Congeladas</span>
+                </p>
+                <p className="text-4xl font-black italic text-blue-500">{totalFrozenCount}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black text-gray-500 uppercase">Fechadas (Período)</p>
+                <p className="text-[10px] font-black text-gray-500 uppercase">Total de Abertas</p>
+                <p className="text-4xl font-black italic">{allOpenVagasForMap.length}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-gray-500 uppercase">Finalizadas (Período)</p>
                 <p className="text-4xl font-black italic text-[#adff2f]">{filteredVagasFechadasPeriodo.length}</p>
               </div>
            </div>
@@ -576,17 +642,23 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
                 const isClosed = !!vaga.FECHAMENTO;
                 const days = Math.ceil(Math.abs((isClosed ? new Date(vaga.FECHAMENTO!) : new Date()).getTime() - new Date(vaga.ABERTURA).getTime()) / (1000 * 60 * 60 * 24));
                 return (
-                  <div key={vaga.id} className="bg-white p-8 rounded-[30px] border-2 border-gray-100 shadow-sm hover:shadow-xl hover:border-black transition-all group relative overflow-hidden">
+                  <div key={vaga.id} className={`bg-white p-8 rounded-[30px] border-2 shadow-sm hover:shadow-xl hover:border-black transition-all group relative overflow-hidden ${vaga.CONGELADA ? 'border-blue-100' : 'border-gray-100'}`}>
+                    {vaga.CONGELADA && (
+                      <div className="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+                    )}
                     <button onClick={() => setVagaSelecionadaParaDetalhes(vaga)} className="absolute top-4 right-4 text-gray-300 hover:text-black transition-colors"><Eye size={20} /></button>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                       <div className="md:col-span-2">
                         <label className="text-[9px] font-black text-[#e31e24] uppercase mb-1">Cargo</label>
-                        <h3 className="text-xl font-black uppercase text-black italic">{vaga.CARGO}</h3>
+                        <h3 className="text-xl font-black uppercase text-black italic leading-tight">
+                          {vaga.CARGO}
+                          {vaga.CONGELADA && <span className="ml-3 text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded-md not-italic">CONGELADA</span>}
+                        </h3>
                         <p className="text-[10px] font-bold text-gray-400">{vaga.UNIDADE} • {vaga.SETOR}</p>
                       </div>
                       <div>
-                        <label className="text-[9px] font-black text-gray-400 uppercase mb-1">Gestor</label>
-                        <p className="text-xs font-black text-black uppercase">{vaga.GESTOR}</p>
+                        <label className="text-[9px] font-black text-gray-400 uppercase mb-1">Responsável</label>
+                        <p className="text-xs font-black text-black uppercase">{vaga['usuário_criador'] || vaga.RECRUTADOR || '---'}</p>
                       </div>
                       <div className="text-right">
                         <label className="text-[9px] font-black text-gray-400 uppercase mb-1">{isClosed ? 'Processo' : 'Aberta há'}</label>
@@ -611,6 +683,13 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e31e24; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #000; }
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 8s linear infinite;
+        }
       `}</style>
     </div>
   );
