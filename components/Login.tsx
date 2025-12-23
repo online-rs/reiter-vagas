@@ -151,7 +151,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
         <div className="bg-gray-50 py-5 text-center border-t border-gray-100">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">
-            Reiterlog • R&S Department • v2.5
+            Reiterlog • R&S Department • v3 23.12.2025 12:19
           </p>
         </div>
       </div>
