@@ -111,15 +111,16 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className={`bg-white w-full max-w-6xl rounded-[40px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh] border-t-[12px] border-x border-b border-gray-200 ${vaga.CONGELADA && !vaga.FECHAMENTO ? 'border-t-blue-600' : 'border-t-black'}`}>
+      <div className={`bg-white w-full max-w-6xl rounded-[40px] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row h-[90vh] max-h-[90vh] border-t-[12px] border-x border-b border-gray-200 ${vaga.CONGELADA && !vaga.FECHAMENTO ? 'border-t-blue-600' : 'border-t-black'}`}>
         
-        <div className="w-full md:w-5/12 bg-gray-50/80 p-10 overflow-y-auto border-r-2 border-gray-100">
+        {/* LADO ESQUERDO: DETALHES DA VAGA */}
+        <div className="w-full md:w-5/12 bg-gray-50/80 p-10 overflow-y-auto border-r-2 border-gray-100 flex flex-col">
           <div className="flex justify-between items-start mb-10 md:hidden">
              <h2 className="text-3xl font-black uppercase tracking-tighter">Detalhes</h2>
              <button onClick={onClose} className="text-black bg-gray-200 p-2 rounded-full"><X size={32} /></button>
           </div>
 
-          <div className="space-y-10">
+          <div className="space-y-10 flex-1">
             <div className={`bg-white p-8 rounded-[30px] shadow-sm border-2 relative overflow-hidden ${vaga.CONGELADA && !vaga.FECHAMENTO ? 'border-blue-100' : 'border-gray-100'}`}>
               <div className={`absolute top-0 left-0 w-3 h-full ${vaga.CONGELADA && !vaga.FECHAMENTO ? 'bg-blue-600' : 'bg-[#e31e24]'}`}></div>
               
@@ -150,7 +151,6 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             </div>
 
             <div className="grid grid-cols-1 gap-8 px-2">
-              {/* Informações mantidas... */}
               <div className="flex items-start space-x-5">
                 <div className="bg-white p-3 rounded-2xl text-black border-2 border-gray-100 shadow-sm">
                     <MapPin size={24} strokeWidth={3} />
@@ -160,7 +160,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
                   <p className={dataStyle}>{vaga.UNIDADE} <span className="text-[#e31e24] mx-1">•</span> {vaga.SETOR}</p>
                 </div>
               </div>
-              {/* ... Resto das infos ... */}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-start space-x-5">
                   <div className="bg-white p-3 rounded-2xl text-black border-2 border-gray-100 shadow-sm">
@@ -197,7 +197,6 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             </div>
 
             <div className="space-y-4 mt-8">
-              {/* Botão Finalizar: Bloqueado se congelada */}
               {!vaga.FECHAMENTO && !vaga.CONGELADA && (
                 <button 
                   onClick={() => onCloseVagaAction?.(vaga)}
@@ -244,7 +243,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
                 </>
               )}
             </div>
-            {/* Resto do componente mantido... */}
+
             {isReopenConfirmOpen && (
               <div className="mt-8 p-8 bg-black rounded-[35px] border-t-[12px] border-[#e31e24] shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
                 <label className="block text-[12px] font-black text-[#adff2f] uppercase tracking-widest mb-4">Justificativa da Reabertura</label>
@@ -273,9 +272,11 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             )}
           </div>
         </div>
-        {/* Resto do componente mantido... */}
-        <div className="flex-1 flex flex-col h-full bg-white relative">
-          <div className="flex items-center justify-between p-8 border-b-4 border-gray-50 bg-white">
+
+        {/* LADO DIREITO: LINHA DO TEMPO ROLÁVEL COM INPUT FIXO */}
+        <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden">
+          {/* HEADER DA LINHA DO TEMPO */}
+          <div className="flex items-center justify-between p-8 border-b-4 border-gray-50 bg-white shrink-0">
             <div className="flex items-center space-x-4 text-black">
               <div className="bg-black p-3 rounded-2xl text-white shadow-lg">
                 <MessageSquare size={24} strokeWidth={3} />
@@ -288,7 +289,8 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             <button onClick={onClose} className="text-gray-200 hover:text-black hover:bg-gray-100 p-3 rounded-full transition-all"><X size={40} strokeWidth={2.5} /></button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-10 space-y-10 bg-[#fdfdfd]">
+          {/* LISTA DE MENSAGENS (ROLÁVEL) */}
+          <div className="flex-1 overflow-y-auto p-10 space-y-10 bg-[#fdfdfd] custom-scrollbar">
             {vaga.OBSERVACOES && vaga.OBSERVACOES.length > 0 ? (
               [...vaga.OBSERVACOES].reverse().map((obs, idx) => {
                 const parts = obs.split(': ');
@@ -316,10 +318,11 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
             )}
           </div>
 
-          <div className="p-10 border-t-4 border-gray-50 bg-gray-50/50">
+          {/* INPUT DE COMENTÁRIO (FIXO NO RODAPÉ) */}
+          <div className="p-8 border-t-4 border-gray-50 bg-gray-50/50 shrink-0">
             <form onSubmit={handleAddComment} className="relative max-w-4xl mx-auto">
               <textarea 
-                className="w-full bg-white border-2 border-gray-200 rounded-[30px] px-8 py-7 text-base font-bold text-gray-900 focus:border-black focus:ring-8 focus:ring-black/5 focus:outline-none transition-all pr-24 shadow-2xl placeholder-gray-400 min-h-[120px] resize-none"
+                className="w-full bg-white border-2 border-gray-200 rounded-[30px] px-8 py-6 text-base font-bold text-gray-900 focus:border-black focus:ring-8 focus:ring-black/5 focus:outline-none transition-all pr-24 shadow-2xl placeholder-gray-400 min-h-[100px] max-h-[150px] resize-none"
                 placeholder="Insira um novo comentário relevante sobre o andamento..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -328,15 +331,31 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
               <button 
                 type="submit"
                 disabled={loading || !newComment.trim()}
-                className="absolute right-5 bottom-5 p-6 bg-black text-[#adff2f] rounded-[22px] hover:bg-[#e31e24] hover:text-white transition-all disabled:opacity-30 shadow-2xl active:scale-90 group ring-4 ring-transparent hover:ring-red-100"
+                className="absolute right-5 bottom-5 p-5 bg-black text-[#adff2f] rounded-[22px] hover:bg-[#e31e24] hover:text-white transition-all disabled:opacity-30 shadow-2xl active:scale-90 group ring-4 ring-transparent hover:ring-red-100"
                 title="Publicar Comentário"
               >
-                {loading ? <Loader2 className="animate-spin" size={28} /> : <Send size={28} strokeWidth={3} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
+                {loading ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} strokeWidth={3} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}
               </button>
             </form>
           </div>
         </div>
       </div>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #ccc;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #e31e24;
+        }
+      `}</style>
     </div>
   );
 };
