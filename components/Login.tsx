@@ -77,17 +77,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div className="flex items-center justify-center min-h-screen bg-[#0f0f0f] p-4 font-sans">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border-t-[8px] border-[#e31e24] transform transition-all duration-300">
         <div className="p-10">
-          <div className="flex justify-center mb-8">
-            <div className="bg-[#e31e24] p-5 rounded-3xl rotate-2 shadow-2xl">
-              <Truck className="w-14 h-14 text-white" />
+          <div className="flex justify-center mb-10">
+            <div className="transition-transform hover:scale-105 duration-300">
+              <img 
+                src="https://www.reiterlog.com/portaln/wp-content/uploads/2020/10/logistica-logo.png" 
+                alt="Logo Reiterlog" 
+                className="h-20 object-contain" 
+              />
             </div>
           </div>
-          <h2 className="text-4xl font-black text-center text-black mb-1 tracking-tighter italic">
-            REITER<span className="text-[#e31e24]">LOG</span>
-          </h2>
-          <p className="text-center text-gray-400 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
-            Internal Management System
-          </p>
+          
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-black text-black tracking-tighter uppercase italic leading-none">
+              GESTÃO DE <span className="text-[#e31e24]">VAGAS</span>
+            </h2>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.4em] mt-2">
+              Internal Management System
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
@@ -136,7 +143,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-black hover:bg-[#1a1a1a] text-[#adff2f] font-black py-4 rounded-xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.3)] transform active:scale-[0.97] transition-all duration-200 tracking-[0.2em] text-sm flex items-center justify-center space-x-3"
+              className="w-full bg-black hover:bg-[#1a1a1a] text-[#41a900] font-black py-4 rounded-xl shadow-[0_15px_30px_-10px_rgba(0,0,0,0.3)] transform active:scale-[0.97] transition-all duration-200 tracking-[0.2em] text-sm flex items-center justify-center space-x-3"
             >
               {loading ? (
                 <>
@@ -151,7 +158,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
         <div className="bg-gray-50 py-5 text-center border-t border-gray-100">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">
-            Reiterlog • R&S Department • v3 23.12.2025 12:19
+            Reiterlog • R&S Department • v3.1 2025
           </p>
         </div>
       </div>

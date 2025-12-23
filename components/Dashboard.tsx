@@ -32,7 +32,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const [selectedVagaForDetails, setSelectedVagaForDetails] = useState<Vaga | null>(null);
   const [vagaToAssignCreator, setVagaToAssignCreator] = useState<Vaga | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'closed'>('open');
-  // Alterado: agora inicia em 'not_frozen' para ocultar congeladas do fluxo normal
   const [filterFrozen, setFilterFrozen] = useState<'all' | 'frozen' | 'not_frozen'>('not_frozen');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -44,7 +43,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const isAdmin = user.role === 'admin';
 
   const fetchVagas = useCallback(async () => {
-    setLoading(true);
+    if (vagas.length === 0) setLoading(true);
+    
     try {
       let query = supabase.from('vagas').select('*');
       
@@ -78,6 +78,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   useEffect(() => {
     fetchVagas();
   }, [user.unidades, isAllAccess]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('vagas_realtime_dashboard')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vagas'
+        },
+        () => {
+          fetchVagas();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchVagas]);
 
   const calculateDaysOpen = (abertura: string, fechamento?: string | null) => {
     const start = new Date(abertura);
@@ -120,24 +141,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const creatorStats = useMemo(() => {
     const stats: Record<string, number> = {};
     vagas.forEach(v => {
-      if (!v.FECHAMENTO) {
+      const matchesFrozenFilter = 
+        filterFrozen === 'all' ? true : 
+        filterFrozen === 'frozen' ? v.CONGELADA : !v.CONGELADA;
+
+      if (!v.FECHAMENTO && matchesFrozenFilter) {
         const creator = getVagaCreator(v);
         stats[creator] = (stats[creator] || 0) + 1;
       }
     });
     return Object.entries(stats).sort((a, b) => b[1] - a[1]);
-  }, [vagas]);
+  }, [vagas, filterFrozen]);
 
   const unitStats = useMemo(() => {
     const stats: Record<string, number> = {};
     vagas.forEach(v => {
-      if (!v.FECHAMENTO) {
+      const matchesFrozenFilter = 
+        filterFrozen === 'all' ? true : 
+        filterFrozen === 'frozen' ? v.CONGELADA : !v.CONGELADA;
+
+      if (!v.FECHAMENTO && matchesFrozenFilter) {
         if (!stats[v.UNIDADE]) stats[v.UNIDADE] = 0;
         stats[v.UNIDADE]++;
       }
     });
     return Object.entries(stats).sort(([a], [b]) => a.localeCompare(b));
-  }, [vagas]);
+  }, [vagas, filterFrozen]);
 
   const toggleUnit = (unit: string) => {
     setSelectedUnits(prev => 
@@ -290,28 +319,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             <>
               <button 
                 onClick={onNavigateToAdminVagas}
-                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#adff2f]"
+                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#41a900]"
               >
                 <Settings size={16} strokeWidth={3} />
                 <span className="hidden sm:inline">Gestão Global</span>
               </button>
               <button 
                 onClick={onNavigateToIndicators}
-                className="flex items-center space-x-2 bg-[#adff2f] text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-black shadow-lg hover:bg-white"
+                className="flex items-center space-x-2 bg-[#41a900] text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-black shadow-lg hover:bg-white"
               >
                 <BarChart2 size={16} strokeWidth={3} />
                 <span className="hidden sm:inline">Indicadores</span>
               </button>
               <button 
                 onClick={onNavigateToUnits}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
               >
                 <Map size={16} />
                 <span className="hidden sm:inline">Unidades</span>
               </button>
               <button 
                 onClick={onNavigateToUsers}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#adff2f] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
               >
                 <Users size={16} />
                 <span className="hidden sm:inline">Usuários</span>
@@ -320,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           )}
 
           <div className="flex items-center space-x-3 bg-[#111] px-4 py-2 rounded-xl border border-gray-800">
-            <ShieldCheck size={16} className={isAllAccess ? "text-[#adff2f]" : "text-orange-500"} />
+            <ShieldCheck size={16} className={isAllAccess ? "text-[#41a900]" : "text-orange-500"} />
             <div className="text-right">
               <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest leading-none">Acesso</p>
               <p className="font-bold text-white text-xs uppercase">
@@ -331,7 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
 
           <div className="text-right hidden lg:block">
             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Colaborador</p>
-            <p className="font-bold text-[#adff2f] text-sm">{user.username}</p>
+            <p className="font-bold text-[#41a900] text-sm">{user.username}</p>
           </div>
 
           <button 
@@ -350,7 +379,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner">
               {[
                 { id: 'open', label: 'Fluxo Normal', count: counts.open, activeColor: 'bg-orange-500 text-white', badgeColor: 'bg-white text-orange-500' },
-                { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#adff2f] text-black' },
+                { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#41a900] text-black' },
                 { id: 'all', label: 'Ver Todas', count: counts.all, activeColor: 'bg-gray-800 text-white', badgeColor: 'bg-gray-400 text-white' }
               ].map((filter) => (
                 <button 
@@ -430,14 +459,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           </div>
         </div>
 
-        {/* FILTROS DE UNIDADE E CRIADOR (COINS) */}
         <div className="space-y-5">
-          {/* Unidades */}
           <div className="flex flex-col space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <MapPin size={14} className="text-[#e31e24]" />
-                <span>Unidades Operacionais:</span>
+                <span>Unidades Operacionais ({filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
               </div>
               {selectedUnits.length > 0 && (
                 <button 
@@ -456,12 +483,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                     onClick={() => toggleUnit(unit)}
                     className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
                       selectedUnits.includes(unit) 
-                      ? 'bg-[#adff2f] border-black text-black shadow-md' 
-                      : 'bg-white border-gray-100 text-gray-500 hover:border-[#adff2f]'
+                      ? 'bg-[#41a900] border-black text-black shadow-md' 
+                      : 'bg-white border-gray-100 text-gray-500 hover:border-[#41a900]'
                     }`}
                   >
                     <span>{unit}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedUnits.includes(unit) ? 'bg-black text-[#adff2f]' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedUnits.includes(unit) ? 'bg-black text-[#41a900]' : 'bg-gray-100 text-gray-400'}`}>
                       {count}
                     </span>
                   </button>
@@ -470,12 +497,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             </div>
           </div>
 
-          {/* Criadores (Coins) */}
           <div className="flex flex-col space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <UserCircle size={14} className="text-[#adff2f]" />
-                <span>Responsáveis pela Abertura (Vagas Ativas):</span>
+                <UserCircle size={14} className="text-[#41a900]" />
+                <span>Responsáveis pela Abertura ({filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
               </div>
               {selectedCreators.length > 0 && (
                 <button 
@@ -499,14 +525,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] uppercase transition-colors ${
-                      selectedCreators.includes(creator) ? 'bg-[#adff2f] text-black' : 'bg-gray-100 text-gray-400 group-hover:bg-black group-hover:text-[#adff2f]'
+                      selectedCreators.includes(creator) ? 'bg-[#41a900] text-black' : 'bg-gray-100 text-gray-400 group-hover:bg-black group-hover:text-[#41a900]'
                     }`}>
                       {creator.substring(0, 2)}
                     </div>
                     <div className="text-left">
                       <p className="text-[10px] font-black uppercase leading-tight">{creator}</p>
-                      <p className={`text-[8px] font-bold uppercase mt-0.5 ${selectedCreators.includes(creator) ? 'text-[#adff2f]' : 'text-[#e31e24]'}`}>
-                        {count} Vagas Ativas
+                      <p className={`text-[8px] font-bold uppercase mt-0.5 ${selectedCreators.includes(creator) ? 'text-[#41a900]' : 'text-[#e31e24]'}`}>
+                        {count} Vagas {filterFrozen === 'frozen' ? 'Congeladas' : 'Ativas'}
                       </p>
                     </div>
                   </button>
@@ -672,7 +698,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                                     e.stopPropagation();
                                     setVagaToAssignCreator(vaga);
                                   }}
-                                  className="p-2 bg-[#adff2f] text-black rounded-xl hover:bg-black hover:text-[#adff2f] transition-all animate-pulse shadow-lg border border-black/10"
+                                  className="p-2 bg-[#41a900] text-black rounded-xl hover:bg-black hover:text-[#41a900] transition-all animate-pulse shadow-lg border border-black/10"
                                   title="Assumir Vaga como Criador"
                                 >
                                   <UserPlus size={18} strokeWidth={3} />
@@ -681,7 +707,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                               <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
                                 <Eye size={18} />
                               </button>
-                              {/* Alterado: Vaga congelada não pode ser finalizada na tabela */}
                               {!vaga.FECHAMENTO && !vaga.CONGELADA && (
                                 <button
                                   onClick={(e) => {
@@ -716,12 +741,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
           Reiterlog Logística • Tecnologia de Gestão de Talentos
         </p>
       </footer>
-      {/* ... restos do componente mantidos ... */}
+
       {vagaToAssignCreator && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
-          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden border-t-[12px] border-[#adff2f] transform transition-all animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden border-t-[12px] border-[#41a900] transform transition-all animate-in zoom-in duration-300">
             <div className="p-10 flex flex-col items-center text-center">
-              <div className="w-24 h-24 bg-[#adff2f] rounded-full flex items-center justify-center mb-8 shadow-2xl animate-bounce">
+              <div className="w-24 h-24 bg-[#41a900] rounded-full flex items-center justify-center mb-8 shadow-2xl animate-bounce">
                 <UserPlus size={48} className="text-black" strokeWidth={3} />
               </div>
               <h2 className="text-2xl font-black uppercase tracking-tighter italic text-black leading-none mb-4">
@@ -741,7 +766,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                 </button>
                 <button 
                   onClick={handleAssignSelfAsCreator}
-                  className="px-6 py-4 bg-black text-[#adff2f] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#e31e24] hover:text-white transition-all shadow-xl active:scale-95 border-b-4 border-black/20"
+                  className="px-6 py-4 bg-black text-[#41a900] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#e31e24] hover:text-white transition-all shadow-xl active:scale-95 border-b-4 border-black/20"
                 >
                   Sim, vincular
                 </button>

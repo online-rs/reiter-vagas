@@ -232,23 +232,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
       <header className="bg-black text-white px-8 py-5 flex items-center justify-between shadow-2xl relative z-10">
         <div className="flex items-center space-x-4">
-          <button onClick={onBack} className="p-2 hover:bg-gray-800 rounded-xl transition-all text-[#adff2f] active:scale-95">
+          <button onClick={onBack} className="p-2 hover:bg-gray-800 rounded-xl transition-all text-[#41a900] active:scale-95">
             <ArrowLeft size={24} strokeWidth={3} />
           </button>
-          <div className="bg-[#adff2f] p-2 rounded-lg transform -skew-x-12 shadow-lg">
+          <div className="bg-[#41a900] p-2 rounded-lg transform -skew-x-12 shadow-lg">
             <Shield size={24} className="text-black transform skew-x-12" strokeWidth={3} />
           </div>
           <div>
             <h1 className="text-2xl font-black tracking-tighter uppercase italic leading-none text-white">
-              SISTEMA DE <span className="text-[#adff2f]">USUÁRIOS</span>
+              SISTEMA DE <span className="text-[#41a900]">USUÁRIOS</span>
             </h1>
-            <p className="text-[9px] font-black text-[#adff2f] uppercase tracking-[0.3em] mt-1 opacity-80">Segurança & Autenticação</p>
+            <p className="text-[9px] font-black text-[#41a900] uppercase tracking-[0.3em] mt-1 opacity-80">Segurança & Autenticação</p>
           </div>
         </div>
         
         <button 
           onClick={() => handleOpenModal()}
-          className="bg-[#adff2f] hover:bg-white text-black px-6 py-2.5 rounded-xl flex items-center justify-center font-black text-[10px] tracking-widest uppercase shadow-lg transform transition active:scale-95 space-x-2"
+          className="bg-[#41a900] hover:bg-white text-black px-6 py-2.5 rounded-xl flex items-center justify-center font-black text-[10px] tracking-widest uppercase shadow-lg transform transition active:scale-95 space-x-2"
         >
           <UserPlus size={18} strokeWidth={3} />
           <span>Novo Usuário</span>
@@ -268,7 +268,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
             />
           </div>
           <div className="bg-black px-4 py-2 rounded-xl shadow-lg flex items-center space-x-3">
-            <div className="w-2 h-2 rounded-full bg-[#adff2f] animate-pulse"></div>
+            <div className="w-2 h-2 rounded-full bg-[#41a900] animate-pulse"></div>
             <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{profiles.length} Usuários Ativos</span>
           </div>
         </div>
@@ -314,7 +314,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
                         </div>
                       </td>
                       <td className="px-8 py-6">
-                        <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-2 ${p.role === 'admin' ? 'bg-black border-black text-[#adff2f]' : 'bg-white border-gray-200 text-gray-600'}`}>
+                        <span className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border-2 ${p.role === 'admin' ? 'bg-black border-black text-[#41a900]' : 'bg-white border-gray-200 text-gray-600'}`}>
                           {p.role || 'USER'}
                         </span>
                       </td>
@@ -374,7 +374,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
           <div className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl overflow-hidden border-t-[8px] border-black transform transition-all animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
             <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <div className="flex items-center space-x-4">
-                <div className="bg-black p-3 rounded-2xl text-[#adff2f] shadow-lg">
+                <div className="bg-black p-3 rounded-2xl text-[#41a900] shadow-lg">
                   {editingProfile ? <Edit size={24} strokeWidth={3} /> : <UserPlus size={24} strokeWidth={3} />}
                 </div>
                 <div>
@@ -472,7 +472,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
                         onClick={() => toggleUnidade('ALL')}
                         className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                           selectedUnidades.includes('ALL') 
-                            ? 'bg-black border-black text-[#adff2f] shadow-lg scale-[1.02] font-black' 
+                            ? 'bg-black border-black text-[#41a900] shadow-lg scale-[1.02] font-black' 
                             : 'bg-white border-white text-gray-600 font-black hover:border-black'
                         }`}
                       >
@@ -490,7 +490,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
                           onClick={() => toggleUnidade(unit)}
                           className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                             selectedUnidades.includes(unit) 
-                              ? 'bg-[#adff2f] border-black text-black shadow-md font-black' 
+                              ? 'bg-[#41a900] border-black text-black shadow-md font-black' 
                               : selectedUnidades.includes('ALL')
                                 ? 'bg-gray-50 border-transparent text-gray-300 opacity-40 cursor-not-allowed'
                                 : 'bg-white border-white text-gray-600 font-black hover:border-black'
@@ -509,7 +509,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
                 <button 
                   type="submit"
                   disabled={formLoading}
-                  className="w-full bg-black text-[#adff2f] py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white active:scale-95 transition-all shadow-xl flex items-center justify-center space-x-3 border-b-4 border-black/20"
+                  className="w-full bg-black text-[#41a900] py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white active:scale-95 transition-all shadow-xl flex items-center justify-center space-x-3 border-b-4 border-black/20"
                 >
                   {formLoading ? <Loader2 className="animate-spin" size={24} /> : <><Save size={20} strokeWidth={4} /><span>{editingProfile ? 'SALVAR ALTERAÇÕES' : 'CONFIRMAR CADASTRO'}</span></>}
                 </button>
@@ -532,7 +532,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ user, onBack }) => {
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #adff2f;
+          background: #41a900;
         }
       `}</style>
     </div>

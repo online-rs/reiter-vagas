@@ -200,7 +200,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
               {!vaga.FECHAMENTO && !vaga.CONGELADA && (
                 <button 
                   onClick={() => onCloseVagaAction?.(vaga)}
-                  className="w-full flex items-center justify-center space-x-4 py-5 bg-black text-[#adff2f] rounded-[25px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-2xl active:scale-95 border-b-8 border-black active:border-b-0"
+                  className="w-full flex items-center justify-center space-x-4 py-5 bg-black text-[#41a900] rounded-[25px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-2xl active:scale-95 border-b-8 border-black active:border-b-0"
                 >
                   <CheckCircle size={22} strokeWidth={3} />
                   <span>Finalizar Vaga</span>
@@ -234,7 +234,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
                   {!isReopenConfirmOpen && (
                     <button 
                       onClick={() => setIsReopenConfirmOpen(true)}
-                      className="w-full flex items-center justify-center space-x-4 py-5 bg-black text-[#adff2f] rounded-[25px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-2xl group active:scale-95 border-b-8 border-black active:border-b-0"
+                      className="w-full flex items-center justify-center space-x-4 py-5 bg-black text-[#41a900] rounded-[25px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-2xl group active:scale-95 border-b-8 border-black active:border-b-0"
                     >
                       <RotateCcw size={22} strokeWidth={3} className="group-hover:rotate-[-45deg] transition-transform" />
                       <span>Reabrir Vaga</span>
@@ -246,9 +246,9 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
 
             {isReopenConfirmOpen && (
               <div className="mt-8 p-8 bg-black rounded-[35px] border-t-[12px] border-[#e31e24] shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
-                <label className="block text-[12px] font-black text-[#adff2f] uppercase tracking-widest mb-4">Justificativa da Reabertura</label>
+                <label className="block text-[12px] font-black text-[#41a900] uppercase tracking-widest mb-4">Justificativa da Reabertura</label>
                 <textarea 
-                  className="w-full bg-gray-900 text-white rounded-[20px] p-6 text-sm font-bold focus:ring-4 focus:ring-[#adff2f]/20 outline-none min-h-[120px] border-2 border-gray-800 transition-all"
+                  className="w-full bg-gray-900 text-white rounded-[20px] p-6 text-sm font-bold focus:ring-4 focus:ring-[#41a900]/20 outline-none min-h-[120px] border-2 border-gray-800 transition-all"
                   placeholder="Explique o motivo para auditar..."
                   value={reopenReason}
                   onChange={(e) => setReopenReason(e.target.value)}
@@ -257,7 +257,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
                   <button 
                     onClick={handleReopenVaga}
                     disabled={loading}
-                    className="w-full bg-[#adff2f] text-black py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg"
+                    className="w-full bg-[#41a900] text-black py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg"
                   >
                     {loading ? <Loader2 className="animate-spin mx-auto" size={24} /> : 'CONFIRMAR REABERTURA AGORA'}
                   </button>
@@ -331,7 +331,7 @@ const VagaDetailsModal: React.FC<VagaDetailsModalProps> = ({ user, vaga, onClose
               <button 
                 type="submit"
                 disabled={loading || !newComment.trim()}
-                className="absolute right-5 bottom-5 p-5 bg-black text-[#adff2f] rounded-[22px] hover:bg-[#e31e24] hover:text-white transition-all disabled:opacity-30 shadow-2xl active:scale-90 group ring-4 ring-transparent hover:ring-red-100"
+                className="absolute right-5 bottom-5 p-5 bg-black text-[#41a900] rounded-[22px] hover:bg-[#e31e24] hover:text-white transition-all disabled:opacity-30 shadow-2xl active:scale-90 group ring-4 ring-transparent hover:ring-red-100"
                 title="Publicar Comentário"
               >
                 {loading ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} strokeWidth={3} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />}

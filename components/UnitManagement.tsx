@@ -129,17 +129,17 @@ const UnitManagement: React.FC<UnitManagementProps> = ({ user, onBack }) => {
           <button onClick={onBack} className="p-2 hover:bg-gray-800 rounded-full transition-colors text-white">
             <ArrowLeft size={24} />
           </button>
-          <div className="bg-[#adff2f] p-2 rounded-lg transform -skew-x-12">
+          <div className="bg-[#41a900] p-2 rounded-lg transform -skew-x-12">
             <Map size={24} className="text-black transform skew-x-12" />
           </div>
           <h1 className="text-2xl font-black tracking-tighter uppercase italic">
-            GESTÃO DE <span className="text-[#adff2f]">UNIDADES</span>
+            GESTÃO DE <span className="text-[#41a900]">UNIDADES</span>
           </h1>
         </div>
         
         <button 
           onClick={() => handleOpenModal()}
-          className="bg-[#adff2f] hover:bg-white text-black px-6 py-2.5 rounded-xl flex items-center justify-center font-black text-[10px] tracking-widest uppercase shadow-lg transform transition active:scale-95 space-x-2"
+          className="bg-[#41a900] hover:bg-white text-black px-6 py-2.5 rounded-xl flex items-center justify-center font-black text-[10px] tracking-widest uppercase shadow-lg transform transition active:scale-95 space-x-2"
         >
           <Plus size={18} />
           <span>Nova Unidade</span>
@@ -235,7 +235,7 @@ const UnitManagement: React.FC<UnitManagementProps> = ({ user, onBack }) => {
           <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden border-t-[10px] border-black transform transition-all animate-in fade-in zoom-in duration-200">
             <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-black uppercase tracking-tighter flex items-center space-x-3">
-                {editingUnit ? <Edit size={24} className="text-[#e31e24]" /> : <Plus size={24} className="text-[#adff2f]" />}
+                {editingUnit ? <Edit size={24} className="text-[#e31e24]" /> : <Plus size={24} className="text-[#41a900]" />}
                 <span>{editingUnit ? 'Editar Unidade' : 'Nova Unidade'}</span>
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-300 hover:text-black transition-colors"><X size={32} /></button>
@@ -270,7 +270,7 @@ const UnitManagement: React.FC<UnitManagementProps> = ({ user, onBack }) => {
                 <button 
                   type="submit"
                   disabled={formLoading || !formNome.trim()}
-                  className="w-full bg-black text-[#adff2f] py-5 rounded-[20px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white active:scale-95 transition-all shadow-2xl flex items-center justify-center space-x-3 border-b-4 border-black/20"
+                  className="w-full bg-black text-[#41a900] py-5 rounded-[20px] font-black text-sm uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white active:scale-95 transition-all shadow-2xl flex items-center justify-center space-x-3 border-b-4 border-black/20"
                 >
                   {formLoading ? <Loader2 className="animate-spin" size={24} /> : <><Save size={20} strokeWidth={3} /><span>{editingUnit ? 'Salvar Alterações' : 'Criar Unidade Agora'}</span></>}
                 </button>
