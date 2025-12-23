@@ -34,6 +34,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
   const [statusDraft, setStatusDraft] = useState<'all' | 'open' | 'closed'>('all');
   const [frozenDraft, setFrozenDraft] = useState<'all' | 'frozen' | 'not_frozen'>('all');
   const [creatorDraft, setCreatorDraft] = useState<string>('all');
+  const [fechadorDraft, setFechadorDraft] = useState<string>('all');
   const [unidadeDraft, setUnidadeDraft] = useState<string>('all');
   const [setorDraft, setSetorDraft] = useState<string>('all');
   const [gestorDraft, setGestorDraft] = useState<string>('all');
@@ -100,6 +101,9 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         if (creatorDraft === 'empty') query = query.or('usuário_criador.is.null,usuário_criador.eq.""');
         else if (creatorDraft !== 'all') query = query.eq('usuário_criador', creatorDraft);
 
+        if (fechadorDraft === 'empty') query = query.or('usuario_fechador.is.null,usuario_fechador.eq.""');
+        else if (fechadorDraft !== 'all') query = query.eq('usuario_fechador', fechadorDraft);
+
         if (unidadeDraft !== 'all') query = query.eq('UNIDADE', unidadeDraft);
         if (setorDraft !== 'all') query = query.eq('SETOR', setorDraft);
         if (gestorDraft !== 'all') query = query.eq('GESTOR', gestorDraft);
@@ -107,7 +111,19 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         if (cargoSpecificDraft !== 'all') query = query.eq('CARGO', cargoSpecificDraft);
 
         if (searchDraft) {
-          query = query.or(`CARGO.ilike.%${searchDraft}%,UNIDADE.ilike.%${searchDraft}%,SETOR.ilike.%${searchDraft}%,GESTOR.ilike.%${searchDraft}%`);
+          const s = searchDraft.trim();
+          // Detectamos se o termo é um número puro (VAGA)
+          const isNumeric = /^\d+$/.test(s);
+          
+          let orFilter = `CARGO.ilike.%${s}%,UNIDADE.ilike.%${s}%,SETOR.ilike.%${s}%,GESTOR.ilike.%${s}%`;
+          
+          if (isNumeric) {
+            // Se for número, adicionamos a busca por igualdade na coluna VAGA (que é numérica)
+            // Nota: Em PostgreSQL, o Supabase trata strings 'VAGA.eq.123' corretamente
+            orFilter += `,VAGA.eq.${s}`;
+          }
+          
+          query = query.or(orFilter);
         }
       }
 
@@ -118,7 +134,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       setLoading(false);
       setSearching(false);
     }
-  }, [searchDraft, statusDraft, frozenDraft, creatorDraft, unidadeDraft, setorDraft, gestorDraft, tipoCargoDraft, cargoSpecificDraft]);
+  }, [searchDraft, statusDraft, frozenDraft, creatorDraft, fechadorDraft, unidadeDraft, setorDraft, gestorDraft, tipoCargoDraft, cargoSpecificDraft]);
 
   useEffect(() => {
     fetchMetadata();
@@ -309,7 +325,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#e31e24]" size={16} />
               <input 
                 type="text" 
-                placeholder="BUSCAR TERMO..."
+                placeholder="BUSCAR TERMO OU Nº VAGA..."
                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase"
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
@@ -370,6 +386,18 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                   <option value="empty">CRIADOR: VAZIO (SISTEMA)</option>
                   {profiles.map(p => (
                     <option key={p.username} value={p.username}>CRIADOR: {p.username}</option>
+                  ))}
+                </select>
+
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase cursor-pointer"
+                  value={fechadorDraft}
+                  onChange={(e) => setFechadorDraft(e.target.value)}
+                >
+                  <option value="all">FECHADOR: TODOS</option>
+                  <option value="empty">FECHADOR: VAZIO</option>
+                  {profiles.map(p => (
+                    <option key={p.username} value={p.username}>FECHADOR: {p.username}</option>
                   ))}
                 </select>
 
