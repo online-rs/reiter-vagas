@@ -70,8 +70,8 @@ const CloseVagaModal: React.FC<CloseVagaModalProps> = ({ user, vaga, onClose, on
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border-t-8 border-black transform transition-all">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50">
           <div className="flex items-center space-x-3">
-            <div className="bg-[#ADFF2F] p-2 rounded-lg">
-              <CheckCircle className="text-black" size={20} />
+            <div className="bg-[#41a900] p-2 rounded-lg">
+              <CheckCircle className="text-white" size={20} />
             </div>
             <div>
               <h2 className="text-lg font-bold text-black uppercase tracking-tight">Finalizar Vaga</h2>
@@ -111,7 +111,7 @@ const CloseVagaModal: React.FC<CloseVagaModalProps> = ({ user, vaga, onClose, on
                 name="NOME_SUBSTITUICAO" 
                 value={formData.NOME_SUBSTITUICAO} 
                 onChange={handleChange} 
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none" 
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none uppercase font-bold text-sm" 
                 placeholder="Ex: João da Silva" 
               />
             </div>
@@ -122,7 +122,7 @@ const CloseVagaModal: React.FC<CloseVagaModalProps> = ({ user, vaga, onClose, on
                 name="CAPTACAO" 
                 value={formData.CAPTACAO} 
                 onChange={handleChange} 
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none font-bold text-sm"
               >
                 <option value="Site Oficial">Site Oficial</option>
                 <option value="Indicação">Indicação</option>
@@ -143,7 +143,7 @@ const CloseVagaModal: React.FC<CloseVagaModalProps> = ({ user, vaga, onClose, on
                 value={formData.OBSERVACAO} 
                 onChange={handleChange} 
                 rows={3}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none resize-none" 
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-black outline-none resize-none font-medium text-sm" 
                 placeholder="Detalhes sobre o processo de fechamento..."
               />
             </div>
@@ -153,12 +153,12 @@ const CloseVagaModal: React.FC<CloseVagaModalProps> = ({ user, vaga, onClose, on
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-black text-white rounded-xl hover:bg-gray-800 font-black shadow-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
+              className="w-full py-3 bg-black text-[#41a900] rounded-xl hover:bg-[#1a1a1a] font-black shadow-xl flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
             >
               <span>{loading ? 'PROCESSANDO...' : 'CONFIRMAR FECHAMENTO'}</span>
             </button>
-            <p className="text-[10px] text-center text-gray-400 font-bold">
-              ESTA AÇÃO IRÁ FINALIZAR A VAGA NO SISTEMA E DEFINIR <span className="text-black">{user.username}</span> COMO RECRUTADOR.
+            <p className="text-[10px] text-center text-gray-400 font-bold uppercase">
+              Finalizando vaga como <span className="text-black">{user.username}</span>.
             </p>
           </div>
         </form>

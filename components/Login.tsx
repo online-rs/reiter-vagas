@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Truck, ShieldAlert, Loader2, Mail, Lock } from 'lucide-react';
+import { ShieldAlert, Loader2, Mail, Lock } from 'lucide-react';
 import { supabase } from '../supabase';
 import { User } from '../types';
 
@@ -32,7 +32,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       if (authData.user) {
-        // Atualiza a data do último login na coluna correta 'ultimo_login'
         await supabase
           .from('profiles')
           .update({ ultimo_login: new Date().toISOString() })
@@ -73,6 +72,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const target = e.currentTarget;
+    // Tenta caminhos alternativos se o principal falhar (considerando possíveis typos na criação da pasta)
+    if (target.src.includes('/assets/logo.png')) {
+      target.src = '/assets/logo2.png';
+    } else if (target.src.includes('/assets/logo2.png')) {
+      target.src = '/assest/logo.png'; 
+    } else if (target.src.includes('/assest/logo.png')) {
+      target.src = '/assest/logo2.png';
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#0f0f0f] p-4 font-sans">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border-t-[8px] border-[#e31e24] transform transition-all duration-300">
@@ -80,9 +91,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="flex justify-center mb-10">
             <div className="transition-transform hover:scale-105 duration-300">
               <img 
-                src="https://www.reiterlog.com/portaln/wp-content/uploads/2020/10/logistica-logo.png" 
+                src="/assets/logo.png" 
                 alt="Logo Reiterlog" 
-                className="h-20 object-contain" 
+                className="h-20 object-contain"
+                onError={handleImageError}
               />
             </div>
           </div>
