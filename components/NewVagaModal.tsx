@@ -23,7 +23,7 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
   const [formData, setFormData] = useState({
     UNIDADE: '',
     SETOR: '',
-    TIPO_CARGO: 'Operacional',
+    TIPO_CARGO: 'Outras Funções',
     CARGO: '',
     TIPO: 'Substituição',
     MOTIVO: '',
@@ -88,7 +88,8 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
     setLoading(false);
   };
 
-  const inputClass = "w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-black focus:ring-4 focus:ring-black/5 focus:outline-none text-black font-bold placeholder-gray-400 transition-all shadow-sm uppercase text-xs";
+  // Removido 'uppercase' da classe de input para respeitar maiúsculas e minúsculas digitadas
+  const inputClass = "w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-black focus:ring-4 focus:ring-black/5 focus:outline-none text-black font-bold placeholder-gray-400 transition-all shadow-sm text-xs";
   const selectClass = "w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-black focus:ring-4 focus:ring-black/5 focus:outline-none text-black font-bold transition-all appearance-none shadow-sm cursor-pointer text-xs";
   const labelClass = "block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1";
 
@@ -138,21 +139,18 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                 </div>
                 <div>
                   <label className={labelClass}>Setor Operacional</label>
-                  <input name="SETOR" value={formData.SETOR} onChange={handleChange} className={inputClass} placeholder="EX: LOGÍSTICA / RH / FROTA" required />
+                  <input name="SETOR" value={formData.SETOR} onChange={handleChange} className={inputClass} placeholder="EX: Logística / RH / Frota" required />
                 </div>
                 <div>
                   <label className={labelClass}>Tipo de Cargo</label>
                   <select name="TIPO_CARGO" value={formData.TIPO_CARGO} onChange={handleChange} className={selectClass}>
-                    <option value="Operacional">Operacional</option>
-                    <option value="Administrativo">Administrativo</option>
-                    <option value="Liderança">Liderança</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Manutenção">Manutenção</option>
+                    <option value="Outras Funções">Outras Funções</option>
+                    <option value="Motorista">Motorista</option>
                   </select>
                 </div>
                 <div>
                   <label className={labelClass}>Nome do Cargo</label>
-                  <input name="CARGO" value={formData.CARGO} onChange={handleChange} className={inputClass} placeholder="EX: AUXILIAR DE DEPÓSITO" required />
+                  <input name="CARGO" value={formData.CARGO} onChange={handleChange} className={inputClass} placeholder="EX: Auxiliar de Depósito" required />
                 </div>
               </div>
             </div>
@@ -175,7 +173,7 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                   </div>
                   <div>
                     <label className={labelClass}>Turno</label>
-                    <input name="TURNO" value={formData.TURNO} onChange={handleChange} className={inputClass} placeholder="EX: 08:00 ÀS 18:00" required />
+                    <input name="TURNO" value={formData.TURNO} onChange={handleChange} className={inputClass} placeholder="EX: 08:00 às 18:00" required />
                   </div>
                 </div>
 
@@ -186,7 +184,7 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                         <label className="block text-[10px] font-black text-red-400 uppercase tracking-widest mb-1.5 ml-1">Pessoa Substituída</label>
                         <div className="relative">
                            <UserMinus className="absolute left-3 top-1/2 -translate-y-1/2 text-red-200" size={16} />
-                           <input name="NOME_SUBSTITUIDO" value={formData.NOME_SUBSTITUIDO} onChange={handleChange} className={`${inputClass} border-red-100 focus:border-red-400 pl-10`} placeholder="NOME DO COLABORADOR" required={formData.TIPO === 'Substituição'} />
+                           <input name="NOME_SUBSTITUIDO" value={formData.NOME_SUBSTITUIDO} onChange={handleChange} className={`${inputClass} border-red-100 focus:border-red-400 pl-10`} placeholder="Nome do Colaborador" required={formData.TIPO === 'Substituição'} />
                         </div>
                       </div>
                       <div>
@@ -207,11 +205,11 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Gestor Direto</label>
-                    <input name="GESTOR" value={formData.GESTOR} onChange={handleChange} className={inputClass} placeholder="NOME DO GESTOR" required />
+                    <input name="GESTOR" value={formData.GESTOR} onChange={handleChange} className={inputClass} placeholder="Nome do Gestor" required />
                   </div>
                   <div>
                     <label className={labelClass}>Gerente Responsável</label>
-                    <input name="GERENTE" value={formData.GERENTE} onChange={handleChange} className={inputClass} placeholder="NOME DO GERENTE" required />
+                    <input name="GERENTE" value={formData.GERENTE} onChange={handleChange} className={inputClass} placeholder="Nome do Gerente" required />
                   </div>
                 </div>
               </div>

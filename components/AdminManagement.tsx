@@ -107,7 +107,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         if (cargoSpecificDraft !== 'all') query = query.eq('CARGO', cargoSpecificDraft);
 
         if (searchDraft) {
-          const s = searchDraft.trim();
+          const s = searchDraft.trim().toLowerCase();
           const isNumeric = /^\d+$/.test(s);
           
           let orFilter = `CARGO.ilike.%${s}%,UNIDADE.ilike.%${s}%,SETOR.ilike.%${s}%,GESTOR.ilike.%${s}%`;
@@ -222,7 +222,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         const isFreezeField = bulkField === 'CONGELADA';
         const newVal = isFreezeField ? bulkValue === 'true' : bulkValue;
         
-        const log = `${dateStr} [AUDIT/BULK]: ${user.username} alterou ${bulkField} de "${(currentVaga as any)[bulkField]}" para "${newVal}" em massa.`;
+        const log = `${dateStr} [AUDIT/BULK]: ${user.username} alterou ${bulkField} para "${newVal}" em massa.`;
         const updatedObservations = [...(currentVaga.OBSERVACOES || []), log];
 
         const updatePayload: any = {
@@ -261,7 +261,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
             <h1 className="text-3xl font-black tracking-tighter uppercase italic leading-none">
               GESTÃO <span className="text-[#e31e24]">GLOBAL</span> DE VAGAS
             </h1>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em] mt-1 opacity-80 italic">Painel do Administrador</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.4em] mt-1 opacity-80 italic">Controle total do banco de dados</p>
           </div>
         </div>
 
@@ -279,14 +279,13 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
              </button>
            )}
            <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-right">
-              <p className="text-[9px] font-black text-gray-500 uppercase">Administrador</p>
+              <p className="text-[9px] font-black text-gray-500 uppercase">Modo Administrador</p>
               <p className="text-xs font-black text-[#41a900]">{user.username}</p>
            </div>
         </div>
       </header>
 
       <main className="flex-1 p-8 lg:p-12 space-y-6">
-        {/* PAINEL DE FILTROS REESTILIZADO EM GRID */}
         <div className="bg-white rounded-[30px] shadow-xl p-8 border-2 border-gray-100 relative overflow-hidden">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-4">
@@ -304,13 +303,12 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
           </div>
 
           <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300 ${isFilterPanelOpen ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0 overflow-hidden'}`}>
-            {/* LINHA 1 */}
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#e31e24]" size={16} />
               <input 
                 type="text" 
                 placeholder="BUSCAR TERMO OU Nº VAGA..."
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black focus:bg-white outline-none font-bold text-[11px] uppercase transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black outline-none font-bold text-[11px] uppercase transition-all"
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch(false)}
@@ -334,7 +332,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
               {allTiposCargo.map(tc => <option key={tc} value={tc}>{tc.toUpperCase()}</option>)}
             </select>
 
-            {/* LINHA 2 */}
             <select className={inputStyle} value={cargoSpecificDraft} onChange={(e) => setCargoSpecificDraft(e.target.value)}>
               <option value="all">CARGO: TODOS</option>
               {allCargos.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
@@ -355,7 +352,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
               {unidades.map(u => <option key={u.nome} value={u.nome}>{u.nome.toUpperCase()}</option>)}
             </select>
 
-            {/* LINHA 3 */}
             <select className={inputStyle} value={setorDraft} onChange={(e) => setSetorDraft(e.target.value)}>
               <option value="all">SETOR: TODOS</option>
               {allSetores.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
@@ -379,7 +375,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
           </div>
         </div>
 
-        {/* TABELA DE RESULTADOS COM COLUNAS SEPARADAS */}
         <div className="bg-white rounded-[40px] shadow-2xl border-2 border-gray-100 overflow-hidden relative">
           {loading && (
             <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center space-y-4">
@@ -406,13 +401,6 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                 </tr>
               </thead>
               <tbody className="divide-y-2 divide-gray-50">
-                {vagas.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={10} className="px-8 py-20 text-center text-gray-300 font-black uppercase italic text-sm">
-                      Nenhum registro encontrado para os filtros selecionados
-                    </td>
-                  </tr>
-                )}
                 {vagas.map((vaga) => {
                   const isSelected = selectedIds.includes(vaga.id);
                   const isFrozen = vaga.CONGELADA && !vaga.FECHAMENTO;
@@ -430,10 +418,10 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                         <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1 italic">{vaga.UNIDADE}</div>
                       </td>
                       <td className="px-8 py-6">
-                        <div className="text-[11px] font-black uppercase text-gray-700">{vaga['usuário_criador'] || 'SISTEMA'}</div>
+                        <div className="text-[11px] font-black text-gray-700">{vaga['usuário_criador'] || 'SISTEMA'}</div>
                       </td>
                       <td className="px-8 py-6">
-                        <div className="text-[11px] font-black uppercase text-gray-700">{vaga.usuario_fechador || '---'}</div>
+                        <div className="text-[11px] font-black text-gray-700">{vaga.usuario_fechador || '---'}</div>
                       </td>
                       <td className="px-8 py-6 text-xs font-black uppercase">
                         {vaga.FECHAMENTO ? (
@@ -471,7 +459,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                 <div className="grid grid-cols-2 gap-8">
                    <div>
                       <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Nome do Cargo</label>
-                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm uppercase" value={editFormData.CARGO || ''} onChange={(e) => setEditFormData({...editFormData, CARGO: e.target.value})} />
+                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm" value={editFormData.CARGO || ''} onChange={(e) => setEditFormData({...editFormData, CARGO: e.target.value})} />
                    </div>
                    <div>
                       <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Unidade</label>
@@ -481,14 +469,14 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                    </div>
                    <div>
                       <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Setor</label>
-                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm uppercase" value={editFormData.SETOR || ''} onChange={(e) => setEditFormData({...editFormData, SETOR: e.target.value})} />
+                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm" value={editFormData.SETOR || ''} onChange={(e) => setEditFormData({...editFormData, SETOR: e.target.value})} />
                    </div>
                    <div>
                       <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Gestor</label>
-                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm uppercase" value={editFormData.GESTOR || ''} onChange={(e) => setEditFormData({...editFormData, GESTOR: e.target.value})} />
+                      <input className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm" value={editFormData.GESTOR || ''} onChange={(e) => setEditFormData({...editFormData, GESTOR: e.target.value})} />
                    </div>
                    <div>
-                      <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Usuário Criador</label>
+                      <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Recrutador (Criador)</label>
                       <select className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm" value={editFormData.usuário_criador || ''} onChange={(e) => setEditFormData({...editFormData, usuário_criador: e.target.value})}>
                          <option value="">SISTEMA</option>
                          {profiles.map(p => <option key={p.username} value={p.username}>{p.username}</option>)}
@@ -497,7 +485,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                    <div>
                       <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Usuário Fechador</label>
                       <select className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-sm" value={editFormData.usuario_fechador || ''} onChange={(e) => setEditFormData({...editFormData, usuario_fechador: e.target.value})}>
-                         <option value="">NÃO FECHADA</option>
+                         <option value="">NÃO DEFINIDO</option>
                          {profiles.map(p => <option key={p.username} value={p.username}>{p.username}</option>)}
                       </select>
                    </div>
@@ -524,7 +512,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
         </div>
       )}
 
-      {/* MODAL EDIÇÃO EM BLOCO ATUALIZADO */}
+      {/* MODAL EDIÇÃO EM BLOCO */}
       {isBulkEditModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
           <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden border-t-[12px] border-[#41a900] animate-in zoom-in duration-200">
@@ -569,18 +557,18 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                         <option value="false">DESCONGELAR TODAS</option>
                      </select>
                    ) : (bulkField === 'usuário_criador' || bulkField === 'usuario_fechador') ? (
-                     <select className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm uppercase outline-none focus:border-black" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
+                     <select className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm outline-none focus:border-black" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
                         <option value="">Selecione o Usuário...</option>
                         {profiles.map(p => <option key={p.username} value={p.username}>{p.username}</option>)}
                      </select>
                    ) : bulkField === 'UNIDADE' ? (
-                     <select className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm uppercase outline-none focus:border-black" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
+                     <select className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm outline-none focus:border-black" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}>
                         <option value="">Selecione a Unidade...</option>
                         {unidades.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
                      </select>
                    ) : (
                      <input 
-                       className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm uppercase outline-none focus:border-black" 
+                       className="w-full bg-gray-50 border-2 p-5 rounded-2xl font-black text-sm outline-none focus:border-black" 
                        placeholder="Digite o novo valor..."
                        value={bulkValue}
                        onChange={(e) => setBulkValue(e.target.value)}
@@ -615,6 +603,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
                 <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-relaxed">
                    Você está prestes a alterar o campo <span className="text-black font-black">"{bulkField}"</span> para <span className="text-[#e31e24] font-black italic">"{bulkValue}"</span> em <span className="text-black font-black underline">{selectedIds.length}</span> registros simultaneamente.
                 </p>
+                <p className="text-[10px] font-black text-red-400 uppercase mt-4 italic tracking-widest">Esta operação será auditada e é irreversível.</p>
              </div>
              <div className="grid grid-cols-1 gap-4">
                 <button 
