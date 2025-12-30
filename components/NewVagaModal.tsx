@@ -88,7 +88,6 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
     setLoading(false);
   };
 
-  // Removido 'uppercase' da classe de input para respeitar maiúsculas e minúsculas digitadas
   const inputClass = "w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-black focus:ring-4 focus:ring-black/5 focus:outline-none text-black font-bold placeholder-gray-400 transition-all shadow-sm text-xs";
   const selectClass = "w-full px-4 py-3 bg-white border-2 border-gray-200 rounded-xl focus:border-black focus:ring-4 focus:ring-black/5 focus:outline-none text-black font-bold transition-all appearance-none shadow-sm cursor-pointer text-xs";
   const labelClass = "block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1";
@@ -189,14 +188,14 @@ const NewVagaModal: React.FC<NewVagaModalProps> = ({ user, onClose, onSuccess })
                       </div>
                       <div>
                         <label className="block text-[10px] font-black text-red-400 uppercase tracking-widest mb-1.5 ml-1">Motivo do Desligamento</label>
-                        <select name="MOTIVO" value={formData.MOTIVO} onChange={handleChange} className={`${selectClass} border-red-100 focus:border-red-400`} required={formData.TIPO === 'Substituição'}>
-                          <option value="">Selecione o motivo...</option>
-                          <option value="Pedido de Demissão">Pedido de Demissão</option>
-                          <option value="Dispensa sem Justa Causa">Dispensa sem Justa Causa</option>
-                          <option value="Dispensa com Justa Causa">Dispensa com Justa Causa</option>
-                          <option value="Término de Contrato">Término de Contrato</option>
-                          <option value="Promoção/Transferência">Promoção / Transferência</option>
-                        </select>
+                        <input 
+                          name="MOTIVO" 
+                          value={formData.MOTIVO} 
+                          onChange={handleChange} 
+                          className={`${inputClass} border-red-100 focus:border-red-400`} 
+                          placeholder="EX: Pedido de Demissão / Término" 
+                          required={formData.TIPO === 'Substituição'} 
+                        />
                       </div>
                     </div>
                   </div>
