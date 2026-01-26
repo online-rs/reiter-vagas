@@ -272,16 +272,17 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     setFormLoading(true);
 
     try {
-      const amount = Math.max(1, bulkCreateData.amount);
+      // Separamos 'amount' do restante dos dados para não enviar ao Supabase
+      const { amount, ...vagaData } = bulkCreateData;
+      const quantity = Math.max(1, amount);
       const newVagas = [];
 
-      for (let i = 0; i < amount; i++) {
+      for (let i = 0; i < quantity; i++) {
         newVagas.push({
-          ...bulkCreateData,
-          amount: undefined, // Remover campo auxiliar
+          ...vagaData, // Espalha apenas os dados válidos da vaga
           ABERTURA: new Date().toISOString(),
           'usuário_criador': user.username,
-          OBSERVACOES: [`${new Date().toLocaleDateString('pt-BR')} ${user.username}: Vaga criada via Abertura em Bloco (Lote de ${amount}).`]
+          OBSERVACOES: [`${new Date().toLocaleDateString('pt-BR')} ${user.username}: Vaga criada via Abertura em Bloco (Lote de ${quantity}).`]
         });
       }
 
@@ -293,7 +294,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
       // Reset form defaults
       setBulkCreateData(prev => ({ ...prev, amount: 1, CARGO: '', SETOR: '', GESTOR: '', GERENTE: '' }));
       handleSearch(false);
-      alert(`${amount} vagas criadas com sucesso!`);
+      alert(`${quantity} vagas criadas com sucesso!`);
     } catch (err: any) {
       alert('Erro ao criar vagas em bloco: ' + err.message);
     } finally {
