@@ -18,6 +18,7 @@ interface IndicatorsProps {
 const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
+  // Alterado para false por padrão (congeladas não somam inicialmente)
   const [showFrozenColumn, setShowFrozenColumn] = useState(false);
   
   // Controle de Expansão do Mapa Geral (Unidades)
@@ -46,7 +47,13 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
 
   const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('vagas').select('*');
+    // Busca 5000 registros ordenados por data de criação decrescente
+    const { data, error } = await supabase
+      .from('vagas')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5000);
+
     if (!error && data) {
       setVagas(data);
       const openVagas = data.filter(v => !v.FECHAMENTO && !v.CONGELADA);
@@ -119,11 +126,15 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
       tree[tc].units[un].totalAumento = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.aumento, 0);
       tree[tc].units[un].totalSub = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.substituicao, 0);
       tree[tc].units[un].totalCong = Object.values(tree[tc].units[un].sectors).reduce((a:any, c:any) => a + c.congelada, 0);
+      
+      // Total Geral agora depende de showFrozenColumn
       tree[tc].units[un].totalGeral = tree[tc].units[un].totalAumento + tree[tc].units[un].totalSub + (showFrozenColumn ? tree[tc].units[un].totalCong : 0);
       
       tree[tc].totalAumento = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalAumento, 0);
       tree[tc].totalSub = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalSub, 0);
       tree[tc].totalCong = Object.values(tree[tc].units).reduce((acc: any, curr: any) => acc + curr.totalCong, 0);
+      
+      // Total Geral agora depende de showFrozenColumn
       tree[tc].totalGeral = tree[tc].totalAumento + tree[tc].totalSub + (showFrozenColumn ? tree[tc].totalCong : 0);
     });
     return tree;
@@ -143,7 +154,7 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
       aum, 
       sub, 
       cong, 
-      total: aum + sub + (showFrozenColumn ? cong : 0) 
+      total: aum + sub + (showFrozenColumn ? cong : 0) // Total depende de showFrozenColumn
     };
   }, [pivotData, showFrozenColumn]);
 
@@ -623,7 +634,68 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
            </div>
         </div>
       </main>
-      {/* ... resten do modal e estilos ... */}
+
+      {/* Modal de Detalhamento de Vagas */}
+      {vagasParaExibir.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden border-t-8 border-black flex flex-col max-h-[90vh]">
+            <div className="px-10 py-6 bg-gray-50 border-b border-gray-100 flex items-center justify-between shrink-0">
+               <div>
+                 <h3 className="text-xl font-black uppercase italic tracking-tighter">{tituloDetalhamento}</h3>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                   Listando {vagasParaExibir.length} registros
+                 </p>
+               </div>
+               <button onClick={() => setVagasParaExibir([])} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                 <X size={28} />
+               </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-10 custom-scrollbar space-y-4">
+               {vagasParaExibir.map((v) => (
+                 <div 
+                   key={v.id} 
+                   onClick={() => setVagaSelecionadaParaDetalhes(v)}
+                   className="p-5 bg-white border-2 border-gray-100 rounded-2xl flex items-center justify-between hover:border-black hover:shadow-lg transition-all cursor-pointer group"
+                 >
+                   <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center font-black text-xs text-gray-400 group-hover:bg-black group-hover:text-white transition-colors">
+                        #{v.VAGA || v.id}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black uppercase text-black">{v.CARGO}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{v.UNIDADE} • {v.SETOR}</p>
+                        {v.FECHAMENTO && <p className="text-[9px] font-black text-green-600 uppercase mt-1">Fechada em: {new Date(v.FECHAMENTO).toLocaleDateString('pt-BR')}</p>}
+                      </div>
+                   </div>
+                   <div className="text-right">
+                      {v.TIPO === 'Aumento de Quadro' ? (
+                        <span className="text-[9px] font-black bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100 uppercase">Aumento</span>
+                      ) : (
+                        <span className="text-[9px] font-black bg-orange-50 text-orange-700 px-2 py-1 rounded border border-orange-100 uppercase">Subst.</span>
+                      )}
+                      <Eye size={16} className="ml-auto mt-2 text-gray-300 group-hover:text-black" />
+                   </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vagaSelecionadaParaDetalhes && (
+        <VagaDetailsModal 
+          user={user} 
+          vaga={vagaSelecionadaParaDetalhes} 
+          onClose={() => setVagaSelecionadaParaDetalhes(null)}
+          onUpdate={() => {
+             fetchData();
+             setVagaSelecionadaParaDetalhes(null);
+             setVagasParaExibir([]); 
+          }}
+        />
+      )}
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 10px; }
