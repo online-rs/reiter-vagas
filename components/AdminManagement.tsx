@@ -7,7 +7,7 @@ import {
   Settings, Filter, Loader2, 
   AlertTriangle, CheckSquare, Square, Layers, 
   ChevronDown, Play, Snowflake, ToggleLeft, ToggleRight,
-  UserCheck, UserPlus, Hash
+  UserCheck, UserPlus, Hash, CopyPlus, MapPin, Briefcase, ShieldCheck, UserMinus
 } from 'lucide-react';
 
 interface AdminManagementProps {
@@ -49,6 +49,7 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
   const [vagaToDelete, setVagaToDelete] = useState<Vaga | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+  const [isBulkCreateModalOpen, setIsBulkCreateModalOpen] = useState(false); // Novo estado para criação em bloco
   const [isBulkConfirmOpen, setIsBulkConfirmOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -59,6 +60,21 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
   // Form state for single edit
   const [editFormData, setEditFormData] = useState<Partial<Vaga>>({});
 
+  // Form state for bulk create
+  const [bulkCreateData, setBulkCreateData] = useState({
+    amount: 1,
+    UNIDADE: '',
+    SETOR: '',
+    TIPO_CARGO: 'Outras Funções',
+    CARGO: '',
+    TIPO: 'Aumento de Quadro',
+    TURNO: '',
+    GESTOR: '',
+    GERENTE: '',
+    MOTIVO: '',
+    NOME_SUBSTITUIDO: ''
+  });
+
   const fetchMetadata = async () => {
     const [profilesRes, unitsRes, metadataRes] = await Promise.all([
       supabase.from('profiles').select('username, full_name'),
@@ -67,7 +83,13 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     ]);
 
     if (!profilesRes.error) setProfiles(profilesRes.data || []);
-    if (!unitsRes.error) setUnidades(unitsRes.data || []);
+    if (!unitsRes.error) {
+        const sortedUnits = (unitsRes.data || []).sort((a, b) => a.nome.localeCompare(b.nome));
+        setUnidades(sortedUnits);
+        if (sortedUnits.length > 0) {
+            setBulkCreateData(prev => ({ ...prev, UNIDADE: sortedUnits[0].nome }));
+        }
+    }
     
     if (!metadataRes.error && metadataRes.data) {
       const setores = Array.from(new Set(metadataRes.data.map(v => v.SETOR))).filter(Boolean).sort() as string[];
@@ -245,6 +267,40 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     }
   };
 
+  const handleBulkCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+
+    try {
+      const amount = Math.max(1, bulkCreateData.amount);
+      const newVagas = [];
+
+      for (let i = 0; i < amount; i++) {
+        newVagas.push({
+          ...bulkCreateData,
+          amount: undefined, // Remover campo auxiliar
+          ABERTURA: new Date().toISOString(),
+          'usuário_criador': user.username,
+          OBSERVACOES: [`${new Date().toLocaleDateString('pt-BR')} ${user.username}: Vaga criada via Abertura em Bloco (Lote de ${amount}).`]
+        });
+      }
+
+      const { error } = await supabase.from('vagas').insert(newVagas);
+
+      if (error) throw error;
+
+      setIsBulkCreateModalOpen(false);
+      // Reset form defaults
+      setBulkCreateData(prev => ({ ...prev, amount: 1, CARGO: '', SETOR: '', GESTOR: '', GERENTE: '' }));
+      handleSearch(false);
+      alert(`${amount} vagas criadas com sucesso!`);
+    } catch (err: any) {
+      alert('Erro ao criar vagas em bloco: ' + err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const inputStyle = "w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-black focus:bg-white outline-none font-bold text-[11px] uppercase transition-all appearance-none cursor-pointer";
 
   return (
@@ -293,13 +349,24 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
               <h2 className="text-lg font-black uppercase italic tracking-tighter">Filtros Avançados</h2>
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full border">Pressione Enter para buscar</span>
             </div>
-            <button 
-              onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-              className="text-[10px] font-black uppercase text-gray-400 hover:text-black flex items-center space-x-2"
-            >
-              <span>{isFilterPanelOpen ? 'Recolher' : 'Expandir'}</span>
-              <ChevronDown className={`transition-transform duration-300 ${isFilterPanelOpen ? 'rotate-180' : ''}`} size={16} />
-            </button>
+            
+            <div className="flex items-center space-x-4">
+                <button 
+                  onClick={() => setIsBulkCreateModalOpen(true)}
+                  className="bg-black text-[#41a900] hover:bg-[#e31e24] hover:text-white px-5 py-2 rounded-xl flex items-center space-x-2 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg"
+                >
+                  <CopyPlus size={16} />
+                  <span>Abertura em Bloco</span>
+                </button>
+
+                <button 
+                  onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+                  className="text-[10px] font-black uppercase text-gray-400 hover:text-black flex items-center space-x-2"
+                >
+                  <span>{isFilterPanelOpen ? 'Recolher' : 'Expandir'}</span>
+                  <ChevronDown className={`transition-transform duration-300 ${isFilterPanelOpen ? 'rotate-180' : ''}`} size={16} />
+                </button>
+            </div>
           </div>
 
           <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300 ${isFilterPanelOpen ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0 overflow-hidden'}`}>
@@ -446,6 +513,188 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
           </div>
         </div>
       </main>
+
+      {/* MODAL CRIAR VAGA EM BLOCO */}
+      {isBulkCreateModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+          <div className="bg-white w-full max-w-4xl rounded-[40px] shadow-2xl overflow-hidden border-t-[12px] border-black flex flex-col max-h-[95vh] animate-in zoom-in duration-200">
+             <div className="px-10 py-8 bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <CopyPlus size={32} className="text-[#e31e24]" />
+                  <div>
+                    <h2 className="text-2xl font-black uppercase italic leading-none">Abertura em Bloco</h2>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Criação de múltiplas vagas idênticas</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsBulkCreateModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full"><X size={32} /></button>
+             </div>
+             
+             <form id="bulkCreateForm" onSubmit={handleBulkCreateSubmit} className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+                {/* CAMPO QUANTIDADE EM DESTAQUE */}
+                <div className="bg-black/5 p-6 rounded-3xl border-2 border-black/10 flex items-center justify-between">
+                   <div className="flex items-center space-x-3">
+                      <Hash size={32} className="text-black" />
+                      <div>
+                        <label className="text-sm font-black uppercase text-black block leading-none">Quantidade de Vagas</label>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase">Quantas cópias desta vaga serão abertas?</p>
+                      </div>
+                   </div>
+                   <input 
+                      type="number"
+                      min="1"
+                      max="100"
+                      required
+                      className="w-32 h-16 text-center text-3xl font-black bg-white border-2 border-black rounded-2xl outline-none focus:ring-4 focus:ring-[#e31e24]/20 transition-all"
+                      value={bulkCreateData.amount}
+                      onChange={(e) => setBulkCreateData({...bulkCreateData, amount: parseInt(e.target.value) || 1})}
+                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {/* Seção 1 */}
+                   <div className="space-y-6">
+                      <div className="flex items-center space-x-2 border-b-2 border-gray-100 pb-2">
+                         <MapPin size={16} className="text-[#e31e24]" />
+                         <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Estrutura</span>
+                      </div>
+                      
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Unidade</label>
+                         <select 
+                            className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-xs cursor-pointer" 
+                            value={bulkCreateData.UNIDADE} 
+                            onChange={(e) => setBulkCreateData({...bulkCreateData, UNIDADE: e.target.value})}
+                            required
+                         >
+                            {unidades.map(u => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
+                         </select>
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Setor</label>
+                         <input 
+                            className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-bold text-xs outline-none focus:border-black" 
+                            value={bulkCreateData.SETOR} 
+                            onChange={(e) => setBulkCreateData({...bulkCreateData, SETOR: e.target.value})}
+                            required
+                         />
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Tipo de Cargo</label>
+                         <select 
+                            className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-xs cursor-pointer" 
+                            value={bulkCreateData.TIPO_CARGO} 
+                            onChange={(e) => setBulkCreateData({...bulkCreateData, TIPO_CARGO: e.target.value})}
+                         >
+                            <option value="Outras Funções">Outras Funções</option>
+                            <option value="Motorista">Motorista</option>
+                         </select>
+                      </div>
+                   </div>
+
+                   {/* Seção 2 */}
+                   <div className="space-y-6">
+                      <div className="flex items-center space-x-2 border-b-2 border-gray-100 pb-2">
+                         <Briefcase size={16} className="text-[#41a900]" />
+                         <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Detalhes do Cargo</span>
+                      </div>
+
+                      <div>
+                         <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Nome do Cargo</label>
+                         <input 
+                            className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-bold text-xs outline-none focus:border-black" 
+                            value={bulkCreateData.CARGO} 
+                            onChange={(e) => setBulkCreateData({...bulkCreateData, CARGO: e.target.value})}
+                            required
+                         />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Tipo de Vaga</label>
+                            <select 
+                                className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-black text-xs cursor-pointer" 
+                                value={bulkCreateData.TIPO} 
+                                onChange={(e) => setBulkCreateData({...bulkCreateData, TIPO: e.target.value})}
+                            >
+                                <option value="Aumento de Quadro">Aumento de Quadro</option>
+                                <option value="Substituição">Substituição</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Turno</label>
+                            <input 
+                                className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-bold text-xs outline-none focus:border-black" 
+                                value={bulkCreateData.TURNO} 
+                                onChange={(e) => setBulkCreateData({...bulkCreateData, TURNO: e.target.value})}
+                                required
+                            />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                             <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Gestor</label>
+                             <input 
+                                className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-bold text-xs outline-none focus:border-black" 
+                                value={bulkCreateData.GESTOR} 
+                                onChange={(e) => setBulkCreateData({...bulkCreateData, GESTOR: e.target.value})}
+                                required
+                             />
+                        </div>
+                        <div>
+                             <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Gerente</label>
+                             <input 
+                                className="w-full bg-gray-50 border-2 p-4 rounded-2xl font-bold text-xs outline-none focus:border-black" 
+                                value={bulkCreateData.GERENTE} 
+                                onChange={(e) => setBulkCreateData({...bulkCreateData, GERENTE: e.target.value})}
+                                required
+                             />
+                        </div>
+                      </div>
+                   </div>
+                </div>
+
+                {bulkCreateData.TIPO === 'Substituição' && (
+                    <div className="bg-red-50 p-6 rounded-3xl border border-red-100 flex items-start space-x-6 animate-in fade-in">
+                        <UserMinus size={24} className="text-red-400 mt-2 shrink-0" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-red-400 block mb-2">Pessoa Substituída</label>
+                                <input 
+                                    className="w-full bg-white border-2 border-red-100 p-4 rounded-2xl font-bold text-xs outline-none focus:border-red-400" 
+                                    value={bulkCreateData.NOME_SUBSTITUIDO} 
+                                    onChange={(e) => setBulkCreateData({...bulkCreateData, NOME_SUBSTITUIDO: e.target.value})}
+                                    required={bulkCreateData.TIPO === 'Substituição'}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-red-400 block mb-2">Motivo da Saída</label>
+                                <input 
+                                    className="w-full bg-white border-2 border-red-100 p-4 rounded-2xl font-bold text-xs outline-none focus:border-red-400" 
+                                    value={bulkCreateData.MOTIVO} 
+                                    onChange={(e) => setBulkCreateData({...bulkCreateData, MOTIVO: e.target.value})}
+                                    placeholder="Ex: Pedido de Demissão"
+                                    required={bulkCreateData.TIPO === 'Substituição'}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+             </form>
+
+             <div className="p-10 border-t flex justify-center space-x-4 bg-gray-50">
+                <button onClick={() => setIsBulkCreateModalOpen(false)} className="px-10 py-5 bg-white border-2 border-gray-200 rounded-2xl font-black text-xs uppercase tracking-widest hover:border-black transition-all">Cancelar</button>
+                <button 
+                  form="bulkCreateForm"
+                  disabled={formLoading}
+                  className="px-12 py-5 bg-black text-[#41a900] rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-[#e31e24] hover:text-white transition-all shadow-xl disabled:opacity-30 border-b-4 border-black/20 flex items-center space-x-3"
+                >
+                  {formLoading ? <Loader2 className="animate-spin" size={20} /> : <><CopyPlus size={20} /><span>CRIAR {bulkCreateData.amount} VAGAS</span></>}
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL EDIÇÃO ÚNICA */}
       {isEditModalOpen && (
