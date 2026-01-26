@@ -6,7 +6,7 @@ import {
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
   UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle, UserCheck, HelpCircle, Settings,
-  Snowflake, Flame, Lock
+  Snowflake, Flame, Lock, PieChart
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
@@ -20,11 +20,12 @@ interface DashboardProps {
   onNavigateToUnits: () => void;
   onNavigateToIndicators: () => void;
   onNavigateToAdminVagas?: () => void;
+  onNavigateToMetrics?: () => void;
 }
 
 type SortKey = keyof Vaga | 'DAYS_OPEN';
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits, onNavigateToIndicators, onNavigateToAdminVagas }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers, onNavigateToUnits, onNavigateToIndicators, onNavigateToAdminVagas, onNavigateToMetrics }) => {
   const [vagas, setVagas] = useState<Vaga[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewVagaModalOpen, setIsNewVagaModalOpen] = useState(false);
@@ -37,7 +38,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedCreators, setSelectedCreators] = useState<string[]>([]);
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null);
+  // Configuração inicial de ordenação alterada para VAGA descendente
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>({ key: 'VAGA', direction: 'desc' });
 
   const isAllAccess = Array.isArray(user.unidades) && user.unidades.some(u => u?.toString().trim().toUpperCase() === 'ALL');
   const isAdmin = user.role === 'admin';
@@ -46,7 +48,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     if (vagas.length === 0) setLoading(true);
     
     try {
-      let query = supabase.from('vagas').select('*');
+      // Mantendo a busca por created_at para garantir que os registros mais recentes (mesmo sem número de vaga) sejam carregados
+      let query = supabase.from('vagas').select('*').order('created_at', { ascending: false }).limit(5000);
       
       if (!isAllAccess) {
         if (user.unidades && user.unidades.length > 0) {
@@ -234,7 +237,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
         return 0;
       });
     } else {
-      filtered.sort((a, b) => new Date(b.ABERTURA).getTime() - new Date(a.ABERTURA).getTime());
+      // Ordenação padrão alterada para VAGA descendente
+      filtered.sort((a, b) => {
+          const valA = a.VAGA || 0;
+          const valB = b.VAGA || 0;
+          return valB - valA;
+      });
     }
 
     return filtered;
@@ -323,6 +331,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
               >
                 <Settings size={16} strokeWidth={3} />
                 <span className="hidden sm:inline">Gestão Global</span>
+              </button>
+              <button 
+                onClick={onNavigateToMetrics}
+                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#41a900]"
+              >
+                <PieChart size={16} strokeWidth={3} />
+                <span className="hidden sm:inline">Métricas</span>
               </button>
               <button 
                 onClick={onNavigateToIndicators}
@@ -569,6 +584,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                     <th onClick={() => handleSort('VAGA')} className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
                       <div className="flex items-center">Vaga {renderSortIcon('VAGA')}</div>
                     </th>
+                    <th onClick={() => handleSort('created_at')} className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <div className="flex items-center">Criação {renderSortIcon('created_at')}</div>
+                    </th>
                     <th onClick={() => handleSort('UNIDADE')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
                       <div className="flex items-center">Unidade / Setor {renderSortIcon('UNIDADE')}</div>
                     </th>
@@ -619,6 +637,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                             <span className={`px-3 py-1.5 rounded-lg text-xs font-black shadow-sm border ${isFrozen ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-900 border-gray-200'}`}>
                               {vaga.VAGA || '---'}
                             </span>
+                          </td>
+                          <td className="px-6 py-6">
+                             <div className="flex flex-col">
+                                 <span className="text-xs font-black text-gray-900">{new Date(vaga.created_at).toLocaleDateString('pt-BR')}</span>
+                                 <span className="text-[10px] font-bold text-gray-400">{new Date(vaga.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                             </div>
                           </td>
                           <td className="px-8 py-6">
                             <div className="text-sm font-black text-black uppercase tracking-tighter">{vaga.UNIDADE}</div>
