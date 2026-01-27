@@ -91,9 +91,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="flex justify-center mb-10">
             <div className="transition-transform hover:scale-105 duration-300">
               <img 
-                src="/assets/logo.png" 
+                src="https://hcqpgfyebbxdjmzarnfn.supabase.co/storage/v1/object/public/images/logistica-logo.png" 
                 alt="Logo Reiterlog" 
-                className="h-20 object-contain"
+                className="h-14 object-contain"
                 onError={handleImageError}
               />
             </div>
