@@ -42,19 +42,39 @@ const Metrics: React.FC<MetricsProps> = ({ user, onBack }) => {
 
   const fetchData = async () => {
     setLoading(true);
-    // Adicionado .limit(5000) para garantir que traga todos os registros se houver muitas vagas criadas em lote
-    const { data, error } = await supabase
-        .from('vagas')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5000); 
+    
+    try {
+      let allData: Vaga[] = [];
+      const pageSize = 1000;
+      let currentOffset = 0;
+      let hasMore = true;
 
-    if (!error && data) {
-      setVagas(data);
-    } else if (error) {
+      while (hasMore) {
+        const { data, error } = await supabase
+            .from('vagas')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .range(currentOffset, currentOffset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          currentOffset += data.length;
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setVagas(allData);
+    } catch (error) {
       console.error("Erro ao buscar vagas para métricas:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {

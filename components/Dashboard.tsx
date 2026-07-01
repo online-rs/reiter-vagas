@@ -48,25 +48,46 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     if (vagas.length === 0) setLoading(true);
     
     try {
-      // Mantendo a busca por created_at para garantir que os registros mais recentes (mesmo sem número de vaga) sejam carregados
-      let query = supabase.from('vagas').select('*').order('created_at', { ascending: false }).limit(5000);
-      
-      if (!isAllAccess) {
-        if (user.unidades && user.unidades.length > 0) {
+      if (!isAllAccess && (!user.unidades || user.unidades.length === 0)) {
+        setVagas([]);
+        setLoading(false);
+        return;
+      }
+
+      let allData: Vaga[] = [];
+      const pageSize = 1000;
+      let currentOffset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from('vagas')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(currentOffset, currentOffset + pageSize - 1);
+        
+        if (!isAllAccess) {
           query = query.in('UNIDADE', user.unidades);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          currentOffset += data.length;
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
         } else {
-          setVagas([]);
-          setLoading(false);
-          return;
+          hasMore = false;
         }
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      setVagas(data || []);
+      setVagas(allData);
       
       if (selectedVagaForDetails) {
-        const updatedVaga = (data || []).find(v => v.id === selectedVagaForDetails.id);
+        const updatedVaga = allData.find(v => v.id === selectedVagaForDetails.id);
         if (updatedVaga) {
           setSelectedVagaForDetails(updatedVaga);
         }
@@ -76,7 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     } finally {
       setLoading(false);
     }
-  }, [user.unidades, isAllAccess, selectedVagaForDetails?.id]);
+  }, [user.unidades, isAllAccess, selectedVagaForDetails?.id, vagas.length]);
 
   useEffect(() => {
     fetchVagas();

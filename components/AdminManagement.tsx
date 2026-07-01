@@ -109,40 +109,65 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     else setSearching(true);
 
     try {
-      let query = supabase.from('vagas').select('*').order('created_at', { ascending: false });
-
       if (isInitial && !searchDraft && statusDraft === 'all' && frozenDraft === 'all' && unidadeDraft === 'all') {
-        query = query.limit(100);
-      } else {
-        if (statusDraft === 'open') query = query.is('FECHAMENTO', null);
-        if (statusDraft === 'closed') query = query.not('FECHAMENTO', 'is', null);
-
-        if (frozenDraft === 'frozen') query = query.eq('CONGELADA', true);
-        if (frozenDraft === 'not_frozen') query = query.eq('CONGELADA', false);
-
-        if (creatorDraft !== 'all') query = query.eq('usuário_criador', creatorDraft);
-        if (fechadorDraft !== 'all') query = query.eq('usuario_fechador', fechadorDraft);
-        if (unidadeDraft !== 'all') query = query.eq('UNIDADE', unidadeDraft);
-        if (setorDraft !== 'all') query = query.eq('SETOR', setorDraft);
-        if (gestorDraft !== 'all') query = query.eq('GESTOR', gestorDraft);
-        if (tipoCargoDraft !== 'all') query = query.eq('TIPO_CARGO', tipoCargoDraft);
-        if (cargoSpecificDraft !== 'all') query = query.eq('CARGO', cargoSpecificDraft);
-
-        if (searchDraft) {
-          const s = searchDraft.trim().toLowerCase();
-          const isNumeric = /^\d+$/.test(s);
-          
-          let orFilter = `CARGO.ilike.%${s}%,UNIDADE.ilike.%${s}%,SETOR.ilike.%${s}%,GESTOR.ilike.%${s}%`;
-          if (isNumeric) {
-            orFilter += `,VAGA.eq.${s}`;
-          }
-          query = query.or(orFilter);
+        const query = supabase.from('vagas').select('*').order('created_at', { ascending: false }).limit(100);
+        const { data, error } = await query;
+        if (!error) {
+          setVagas(data || []);
         }
-      }
+      } else {
+        const buildQuery = () => {
+          let query = supabase.from('vagas').select('*').order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-      if (!error) {
-        setVagas(data || []);
+          if (statusDraft === 'open') query = query.is('FECHAMENTO', null);
+          if (statusDraft === 'closed') query = query.not('FECHAMENTO', 'is', null);
+
+          if (frozenDraft === 'frozen') query = query.eq('CONGELADA', true);
+          if (frozenDraft === 'not_frozen') query = query.eq('CONGELADA', false);
+
+          if (creatorDraft !== 'all') query = query.eq('usuário_criador', creatorDraft);
+          if (fechadorDraft !== 'all') query = query.eq('usuario_fechador', fechadorDraft);
+          if (unidadeDraft !== 'all') query = query.eq('UNIDADE', unidadeDraft);
+          if (setorDraft !== 'all') query = query.eq('SETOR', setorDraft);
+          if (gestorDraft !== 'all') query = query.eq('GESTOR', gestorDraft);
+          if (tipoCargoDraft !== 'all') query = query.eq('TIPO_CARGO', tipoCargoDraft);
+          if (cargoSpecificDraft !== 'all') query = query.eq('CARGO', cargoSpecificDraft);
+
+          if (searchDraft) {
+            const s = searchDraft.trim().toLowerCase();
+            const isNumeric = /^\d+$/.test(s);
+            
+            let orFilter = `CARGO.ilike.%${s}%,UNIDADE.ilike.%${s}%,SETOR.ilike.%${s}%,GESTOR.ilike.%${s}%`;
+            if (isNumeric) {
+              orFilter += `,VAGA.eq.${s}`;
+            }
+            query = query.or(orFilter);
+          }
+          return query;
+        };
+
+        let allData: Vaga[] = [];
+        const pageSize = 1000;
+        let currentOffset = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const query = buildQuery().range(currentOffset, currentOffset + pageSize - 1);
+          const { data, error } = await query;
+          
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            currentOffset += data.length;
+            if (data.length < pageSize) {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        setVagas(allData);
       }
     } catch (err) {
       console.error('Erro na busca:', err);

@@ -47,22 +47,44 @@ const Indicators: React.FC<IndicatorsProps> = ({ user, onBack }) => {
 
   const fetchData = async () => {
     setLoading(true);
-    // Busca 5000 registros ordenados por data de criação decrescente
-    const { data, error } = await supabase
-      .from('vagas')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5000);
+    
+    try {
+      let allData: Vaga[] = [];
+      const pageSize = 1000;
+      let currentOffset = 0;
+      let hasMore = true;
 
-    if (!error && data) {
-      setVagas(data);
-      const openVagas = data.filter(v => !v.FECHAMENTO && !v.CONGELADA);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('vagas')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(currentOffset, currentOffset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          currentOffset += data.length;
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setVagas(allData);
+      const openVagas = allData.filter(v => !v.FECHAMENTO && !v.CONGELADA);
       const r = Array.from(new Set(openVagas.map(v => v['usuário_criador'] || v.RECRUTADOR || 'NÃO INFORMADO'))).filter(Boolean) as string[];
       setSelectedRecrutadores(r);
       const t = Array.from(new Set(openVagas.map(v => v.TURNO))).filter(Boolean) as string[];
       setSelectedTurnos(t);
+    } catch (error) {
+      console.error("Erro ao buscar vagas para indicadores:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
