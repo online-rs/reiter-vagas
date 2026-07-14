@@ -38,10 +38,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedCreators, setSelectedCreators] = useState<string[]>([]);
+  const [selectedCargos, setSelectedCargos] = useState<string[]>([]);
   // Configuração inicial de ordenação alterada para VAGA descendente
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>({ key: 'VAGA', direction: 'desc' });
 
   const isAllAccess = Array.isArray(user.unidades) && user.unidades.some(u => u?.toString().trim().toUpperCase() === 'ALL');
+
   const isAdmin = user.role === 'admin';
 
   const fetchVagas = useCallback(async () => {
@@ -162,35 +164,76 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     setLoading(false);
   };
 
+  const baseVagasForStats = useMemo(() => {
+    return vagas.filter(v => {
+      if (filterStatus === 'open' && v.FECHAMENTO) return false;
+      if (filterStatus === 'closed' && !v.FECHAMENTO) return false;
+
+      if (filterFrozen === 'frozen' && !v.CONGELADA) return false;
+      if (filterFrozen === 'not_frozen' && v.CONGELADA) return false;
+
+      const s = searchTerm.toLowerCase();
+      if (s) {
+        return (
+          v.CARGO?.toLowerCase().includes(s) ||
+          v.GESTOR?.toLowerCase().includes(s) ||
+          v.GERENTE?.toLowerCase().includes(s) ||
+          v.NOME_SUBSTITUIDO?.toLowerCase().includes(s) ||
+          v.NOME_SUBSTITUICAO?.toLowerCase().includes(s) ||
+          v.UNIDADE?.toLowerCase().includes(s) ||
+          v.VAGA?.toString().includes(s)
+        );
+      }
+      return true;
+    });
+  }, [vagas, searchTerm, filterStatus, filterFrozen]);
+
   const creatorStats = useMemo(() => {
     const stats: Record<string, number> = {};
-    vagas.forEach(v => {
-      const matchesFrozenFilter = 
-        filterFrozen === 'all' ? true : 
-        filterFrozen === 'frozen' ? v.CONGELADA : !v.CONGELADA;
-
-      if (!v.FECHAMENTO && matchesFrozenFilter) {
-        const creator = getVagaCreator(v);
-        stats[creator] = (stats[creator] || 0) + 1;
-      }
+    baseVagasForStats.filter(v => {
+      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(unit);
+      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
+      return matchesUnit && matchesCargo;
+    }).forEach(v => {
+      const creator = getVagaCreator(v);
+      stats[creator] = (stats[creator] || 0) + 1;
     });
     return Object.entries(stats).sort((a, b) => b[1] - a[1]);
-  }, [vagas, filterFrozen]);
+  }, [baseVagasForStats, selectedUnits, selectedCargos]);
 
   const unitStats = useMemo(() => {
     const stats: Record<string, number> = {};
-    vagas.forEach(v => {
-      const matchesFrozenFilter = 
-        filterFrozen === 'all' ? true : 
-        filterFrozen === 'frozen' ? v.CONGELADA : !v.CONGELADA;
-
-      if (!v.FECHAMENTO && matchesFrozenFilter) {
-        if (!stats[v.UNIDADE]) stats[v.UNIDADE] = 0;
-        stats[v.UNIDADE]++;
-      }
+    baseVagasForStats.filter(v => {
+      const creator = getVagaCreator(v);
+      const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
+      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
+      return matchesCreator && matchesCargo;
+    }).forEach(v => {
+      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      if (!stats[unit]) stats[unit] = 0;
+      stats[unit]++;
     });
     return Object.entries(stats).sort(([a], [b]) => a.localeCompare(b));
-  }, [vagas, filterFrozen]);
+  }, [baseVagasForStats, selectedCreators, selectedCargos]);
+
+  const cargoStats = useMemo(() => {
+    const stats: Record<string, number> = {};
+    baseVagasForStats.filter(v => {
+      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(unit);
+      const creator = getVagaCreator(v);
+      const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
+      return matchesUnit && matchesCreator;
+    }).forEach(v => {
+      const cargo = v.CARGO || 'NÃO INFORMADO';
+      if (!stats[cargo]) stats[cargo] = 0;
+      stats[cargo]++;
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [baseVagasForStats, selectedUnits, selectedCreators]);
 
   const toggleUnit = (unit: string) => {
     setSelectedUnits(prev => 
@@ -204,6 +247,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     );
   };
 
+  const toggleCargo = (cargo: string) => {
+    setSelectedCargos(prev => 
+      prev.includes(cargo) ? prev.filter(c => c !== cargo) : [...prev, cargo]
+    );
+  };
+
   const counts = useMemo(() => {
     return {
       all: vagas.length,
@@ -214,30 +263,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   }, [vagas]);
 
   const processedVagas = useMemo(() => {
-    let filtered = vagas.filter(v => {
-      if (filterStatus === 'open' && v.FECHAMENTO) return false;
-      if (filterStatus === 'closed' && !v.FECHAMENTO) return false;
-
-      if (filterFrozen === 'frozen' && !v.CONGELADA) return false;
-      if (filterFrozen === 'not_frozen' && v.CONGELADA) return false;
-
-      const s = searchTerm.toLowerCase();
-      const matchesSearch = (
-        v.CARGO?.toLowerCase().includes(s) ||
-        v.GESTOR?.toLowerCase().includes(s) ||
-        v.GERENTE?.toLowerCase().includes(s) ||
-        v.NOME_SUBSTITUIDO?.toLowerCase().includes(s) ||
-        v.NOME_SUBSTITUICAO?.toLowerCase().includes(s) ||
-        v.UNIDADE?.toLowerCase().includes(s) ||
-        v.VAGA?.toString().includes(s)
-      );
-      
-      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(v.UNIDADE);
+    let filtered = baseVagasForStats.filter(v => {
+      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(v.UNIDADE || 'NÃO INFORMADA');
       
       const creator = getVagaCreator(v);
       const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
       
-      return matchesSearch && matchesUnit && matchesCreator;
+      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
+      
+      return matchesUnit && matchesCreator && matchesCargo;
     });
 
     if (sortConfig) {
@@ -267,7 +302,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     }
 
     return filtered;
-  }, [vagas, searchTerm, selectedUnits, selectedCreators, sortConfig, filterStatus, filterFrozen]);
+  }, [baseVagasForStats, selectedUnits, selectedCreators, selectedCargos, sortConfig]);
 
   const handleSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -500,7 +535,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <MapPin size={14} className="text-[#e31e24]" />
-                <span>Unidades Operacionais ({filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+                <span>Unidades Operacionais ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
               </div>
               {selectedUnits.length > 0 && (
                 <button 
@@ -537,7 +572,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <UserCircle size={14} className="text-[#41a900]" />
-                <span>Responsáveis pela Abertura ({filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+                <span>Responsáveis pela Abertura ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
               </div>
               {selectedCreators.length > 0 && (
                 <button 
@@ -568,12 +603,58 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                     <div className="text-left">
                       <p className="text-[10px] font-black uppercase leading-tight">{creator}</p>
                       <p className={`text-[8px] font-bold uppercase mt-0.5 ${selectedCreators.includes(creator) ? 'text-[#41a900]' : 'text-[#e31e24]'}`}>
-                        {count} Vagas {filterFrozen === 'frozen' ? 'Congeladas' : 'Ativas'}
+                        {count} Vagas {filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'no Total' : filterFrozen === 'frozen' ? 'Congeladas' : 'Ativas'}
                       </p>
                     </div>
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <Users size={14} className="text-blue-500" />
+                <span>Cargos ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+              </div>
+              {selectedCargos.length > 0 && (
+                <button 
+                  onClick={() => setSelectedCargos([])}
+                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
+                >
+                  Limpar Cargos
+                </button>
+              )}
+            </div>
+            <div className="flex items-center space-x-2 overflow-x-auto pb-4 scrollbar-hide">
+              <div className="flex space-x-2">
+                {cargoStats.map(([cargo, count]) => (
+                  <button
+                    key={cargo}
+                    onClick={() => toggleCargo(cargo)}
+                    className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                      selectedCargos.includes(cargo) 
+                      ? 'bg-blue-500 border-black text-white shadow-md' 
+                      : 'bg-white border-gray-100 text-gray-500 hover:border-blue-500'
+                    }`}
+                  >
+                    <span>{cargo}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedCargos.includes(cargo) ? 'bg-black text-blue-500' : 'bg-gray-100 text-gray-400'}`}>
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-gray-500">
+              <Hash size={14} />
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                Vagas Filtradas: <span className="text-black text-xs ml-1">{processedVagas.length}</span>
+              </span>
             </div>
           </div>
         </div>
@@ -615,6 +696,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                       <div className="flex items-center">Cargo / Responsáveis {renderSortIcon('CARGO')}</div>
                     </th>
                     <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                      Aberto Por
+                    </th>
+                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                       Substituído / Contratado
                     </th>
                     <th onClick={() => handleSort('ABERTURA')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
@@ -634,7 +718,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                 <tbody className="bg-white divide-y divide-gray-100">
                   {processedVagas.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-8 py-24 text-center">
+                      <td colSpan={11} className="px-8 py-24 text-center">
                         <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                            <AlertCircle size={48} />
                            <p className="font-bold uppercase tracking-widest text-xs">
@@ -673,6 +757,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                             <div className={`text-sm font-bold uppercase italic ${isFrozen ? 'text-blue-700' : 'text-[#e31e24]'}`}>{vaga.CARGO}</div>
                             <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
                             <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
+                          </td>
+                          <td className="px-8 py-6">
+                            <div className="text-[11px] font-black text-gray-900 uppercase">
+                              {getVagaCreator(vaga)}
+                            </div>
                           </td>
                           <td className="px-8 py-6">
                             <div className="space-y-1">
