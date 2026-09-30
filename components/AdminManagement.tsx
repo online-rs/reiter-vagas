@@ -92,10 +92,10 @@ const AdminManagement: React.FC<AdminManagementProps> = ({ user, onBack }) => {
     }
     
     if (!metadataRes.error && metadataRes.data) {
-      const setores = Array.from(new Set(metadataRes.data.map(v => v.SETOR))).filter(Boolean).sort() as string[];
-      const gestores = Array.from(new Set(metadataRes.data.map(v => v.GESTOR))).filter(Boolean).sort() as string[];
-      const tiposCargo = Array.from(new Set(metadataRes.data.map(v => v.TIPO_CARGO))).filter(Boolean).sort() as string[];
-      const cargos = Array.from(new Set(metadataRes.data.map(v => v.CARGO))).filter(Boolean).sort() as string[];
+      const setores = Array.from(new Set(metadataRes.data.map(v => v.SETOR ? v.SETOR.toString().trim() : null))).filter(Boolean).sort() as string[];
+      const gestores = Array.from(new Set(metadataRes.data.map(v => v.GESTOR ? v.GESTOR.toString().trim() : null))).filter(Boolean).sort() as string[];
+      const tiposCargo = Array.from(new Set(metadataRes.data.map(v => v.TIPO_CARGO ? v.TIPO_CARGO.toString().trim() : null))).filter(Boolean).sort() as string[];
+      const cargos = Array.from(new Set(metadataRes.data.map(v => v.CARGO ? v.CARGO.toString().replace(/[\u00A0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase() : null))).filter(Boolean).sort() as string[];
       
       setAllSetores(setores);
       setAllGestores(gestores);

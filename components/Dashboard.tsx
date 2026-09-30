@@ -6,7 +6,7 @@ import {
   Plus, LogOut, Clock, CheckCircle, AlertCircle, TrendingUp, 
   User as UserIcon, Eye, ShieldCheck, Users, Search as SearchIcon, 
   UserMinus, UserPlus, ChevronsUpDown, ArrowUp, ArrowDown, MapPin, XCircle, X, Hash, Map, Download, BarChart2, UserCircle, UserCheck, HelpCircle, Settings,
-  Snowflake, Flame, Lock, PieChart
+  Snowflake, Flame, Lock, PieChart, ChevronUp, ChevronDown
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NewVagaModal from './NewVagaModal';
@@ -39,6 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedCreators, setSelectedCreators] = useState<string[]>([]);
   const [selectedCargos, setSelectedCargos] = useState<string[]>([]);
+  const [isCoinsExpanded, setIsCoinsExpanded] = useState(true);
   // Configuração inicial de ordenação alterada para VAGA descendente
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>({ key: 'VAGA', direction: 'desc' });
 
@@ -133,10 +134,36 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const getVagaCreator = (v: Vaga) => {
-    return v['usuário_criador'] && v['usuário_criador'].trim() !== '' 
+  const normalizeCargo = (cargo?: string | null): string => {
+    if (!cargo) return 'NÃO INFORMADO';
+    const cleaned = cargo
+      .toString()
+      .replace(/[\u00A0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned ? cleaned.toUpperCase() : 'NÃO INFORMADO';
+  };
+
+  const normalizeUnit = (unit?: string | null): string => {
+    if (!unit) return 'NÃO INFORMADA';
+    const cleaned = unit
+      .toString()
+      .replace(/[\u00A0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned ? cleaned.toUpperCase() : 'NÃO INFORMADA';
+  };
+
+  const getVagaCreator = (v: Vaga): string => {
+    const raw = v['usuário_criador'] && v['usuário_criador'].trim() !== '' 
       ? v['usuário_criador'] 
       : (v.RECRUTADOR || 'SISTEMA');
+    const cleaned = raw
+      .toString()
+      .replace(/[\u00A0\u1680\u180e\u2000-\u200b\u202f\u205f\u3000\ufeff]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return cleaned ? cleaned.toUpperCase() : 'SISTEMA';
   };
 
   const handleAssignSelfAsCreator = async () => {
@@ -191,9 +218,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const creatorStats = useMemo(() => {
     const stats: Record<string, number> = {};
     baseVagasForStats.filter(v => {
-      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      const unit = normalizeUnit(v.UNIDADE);
       const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(unit);
-      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const cargo = normalizeCargo(v.CARGO);
       const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
       return matchesUnit && matchesCargo;
     }).forEach(v => {
@@ -208,11 +235,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
     baseVagasForStats.filter(v => {
       const creator = getVagaCreator(v);
       const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
-      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const cargo = normalizeCargo(v.CARGO);
       const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
       return matchesCreator && matchesCargo;
     }).forEach(v => {
-      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      const unit = normalizeUnit(v.UNIDADE);
       if (!stats[unit]) stats[unit] = 0;
       stats[unit]++;
     });
@@ -222,13 +249,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
   const cargoStats = useMemo(() => {
     const stats: Record<string, number> = {};
     baseVagasForStats.filter(v => {
-      const unit = v.UNIDADE || 'NÃO INFORMADA';
+      const unit = normalizeUnit(v.UNIDADE);
       const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(unit);
       const creator = getVagaCreator(v);
       const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
       return matchesUnit && matchesCreator;
     }).forEach(v => {
-      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const cargo = normalizeCargo(v.CARGO);
       if (!stats[cargo]) stats[cargo] = 0;
       stats[cargo]++;
     });
@@ -264,12 +291,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
 
   const processedVagas = useMemo(() => {
     let filtered = baseVagasForStats.filter(v => {
-      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(v.UNIDADE || 'NÃO INFORMADA');
+      const unit = normalizeUnit(v.UNIDADE);
+      const matchesUnit = selectedUnits.length === 0 || selectedUnits.includes(unit);
       
       const creator = getVagaCreator(v);
       const matchesCreator = selectedCreators.length === 0 || selectedCreators.includes(creator);
       
-      const cargo = v.CARGO || 'NÃO INFORMADO';
+      const cargo = normalizeCargo(v.CARGO);
       const matchesCargo = selectedCargos.length === 0 || selectedCargos.includes(cargo);
       
       return matchesUnit && matchesCreator && matchesCargo;
@@ -366,88 +394,98 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans">
-      <header className="bg-black text-white px-8 py-5 flex items-center justify-between shadow-2xl relative z-10">
-        <div className="flex items-center space-x-4">
-          <div className="bg-[#e31e24] p-2 rounded-lg transform -skew-x-12">
-            <TrendingUp size={24} className="text-white transform skew-x-12" />
+      <header className="bg-black text-white px-6 py-3.5 flex items-center justify-between shadow-2xl relative z-10">
+        <div className="flex items-center space-x-3">
+          <div className="bg-[#e31e24] p-1.5 rounded-lg transform -skew-x-12">
+            <TrendingUp size={22} className="text-white transform skew-x-12" />
           </div>
-          <h1 className="text-2xl font-black tracking-tighter uppercase italic">
+          <h1 className="text-xl font-black tracking-tighter uppercase italic">
             REITER<span className="text-[#e31e24]">LOG</span>
           </h1>
           <div className="h-4 w-[1px] bg-gray-700 hidden md:block"></div>
-          <p className="text-gray-400 text-[10px] font-bold tracking-[0.3em] uppercase hidden md:block">Portal de Vagas</p>
+          <p className="text-gray-400 text-[9px] font-bold tracking-[0.25em] uppercase hidden md:block">Portal de Vagas</p>
         </div>
         
-        <div className="flex items-center space-x-3 md:space-x-4">
+        <div className="flex items-center space-x-2.5 md:space-x-3">
           {isAdmin && (
             <>
               <button 
                 onClick={onNavigateToAdminVagas}
-                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#41a900]"
+                className="flex items-center space-x-1.5 bg-white text-black px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-black shadow hover:bg-black hover:text-[#41a900]"
               >
-                <Settings size={16} strokeWidth={3} />
+                <Settings size={14} strokeWidth={2.5} />
                 <span className="hidden sm:inline">Gestão Global</span>
               </button>
               <button 
                 onClick={onNavigateToMetrics}
-                className="flex items-center space-x-2 bg-white text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border-2 border-black shadow-lg hover:bg-black hover:text-[#41a900]"
+                className="flex items-center space-x-1.5 bg-white text-black px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-black shadow hover:bg-black hover:text-[#41a900]"
               >
-                <PieChart size={16} strokeWidth={3} />
+                <PieChart size={14} strokeWidth={2.5} />
                 <span className="hidden sm:inline">Métricas</span>
               </button>
               <button 
                 onClick={onNavigateToIndicators}
-                className="flex items-center space-x-2 bg-[#41a900] text-black px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-black shadow-lg hover:bg-white"
+                className="flex items-center space-x-1.5 bg-[#41a900] text-black px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-black shadow hover:bg-white"
               >
-                <BarChart2 size={16} strokeWidth={3} />
+                <BarChart2 size={14} strokeWidth={2.5} />
                 <span className="hidden sm:inline">Indicadores</span>
               </button>
               <button 
                 onClick={onNavigateToUnits}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-1.5 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-gray-700"
               >
-                <Map size={16} />
+                <Map size={14} />
                 <span className="hidden sm:inline">Unidades</span>
               </button>
               <button 
                 onClick={onNavigateToUsers}
-                className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest border border-gray-700"
+                className="flex items-center space-x-1.5 bg-gray-800 hover:bg-gray-700 text-[#41a900] px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-gray-700"
               >
-                <Users size={16} />
+                <Users size={14} />
                 <span className="hidden sm:inline">Usuários</span>
               </button>
             </>
           )}
 
-          <div className="flex items-center space-x-3 bg-[#111] px-4 py-2 rounded-xl border border-gray-800">
-            <ShieldCheck size={16} className={isAllAccess ? "text-[#41a900]" : "text-orange-500"} />
+          <button 
+            onClick={handleExport}
+            disabled={processedVagas.length === 0}
+            className="flex items-center space-x-1.5 bg-[#1b5e20] hover:bg-[#2e7d32] text-white px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-wider border border-green-600/50 shadow-md active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+            title="Exportar dados filtrados para Excel"
+          >
+            <Download size={14} strokeWidth={2.5} />
+            <span className="hidden sm:inline">Exportar Excel</span>
+          </button>
+
+          <div className="flex items-center space-x-2 bg-[#111] px-3 py-1.5 rounded-xl border border-gray-800">
+            <ShieldCheck size={14} className={isAllAccess ? "text-[#41a900]" : "text-orange-500"} />
             <div className="text-right">
-              <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest leading-none">Acesso</p>
-              <p className="font-bold text-white text-xs uppercase">
+              <p className="text-[8px] text-gray-500 uppercase font-black tracking-widest leading-none">Acesso</p>
+              <p className="font-bold text-white text-[10px] uppercase">
                 {isAllAccess ? 'TOTAL' : `${user.unidades?.length || 0} UNID.`}
               </p>
             </div>
           </div>
 
           <div className="text-right hidden lg:block">
-            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Colaborador</p>
-            <p className="font-bold text-[#41a900] text-sm">{user.username}</p>
+            <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest">Colaborador</p>
+            <p className="font-bold text-[#41a900] text-xs">{user.username}</p>
           </div>
 
           <button 
             onClick={onLogout}
-            className="p-3 bg-[#1a1a1a] hover:bg-[#e31e24] hover:text-white rounded-xl transition-all text-[#e31e24] border border-gray-800"
+            className="p-2 bg-[#1a1a1a] hover:bg-[#e31e24] hover:text-white rounded-xl transition-all text-[#e31e24] border border-gray-800"
             title="Sair"
           >
-            <LogOut size={18} />
+            <LogOut size={16} />
           </button>
         </div>
       </header>
 
-      <div className="bg-white border-b border-gray-200 px-8 py-6 shadow-sm space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 w-full lg:w-auto">
-            <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center space-y-3 md:space-y-0 md:space-x-3 w-full lg:w-auto">
+            <div className="bg-white p-1 rounded-xl flex shrink-0 border-2 border-gray-100 shadow-inner">
               {[
                 { id: 'open', label: 'Fluxo Normal', count: counts.open, activeColor: 'bg-orange-500 text-white', badgeColor: 'bg-white text-orange-500' },
                 { id: 'closed', label: 'Finalizadas', count: counts.closed, activeColor: 'bg-black text-white', badgeColor: 'bg-[#41a900] text-black' },
@@ -460,17 +498,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                     if (filter.id === 'open') setFilterFrozen('not_frozen');
                     else if (filter.id === 'all') setFilterFrozen('all');
                   }}
-                  className={`px-5 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-3 ${filterStatus === filter.id ? filter.activeColor + ' shadow-md scale-105' : 'text-gray-400 hover:text-gray-900'}`}
+                  className={`px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center space-x-2 ${filterStatus === filter.id ? filter.activeColor + ' shadow-md scale-105' : 'text-gray-400 hover:text-gray-900'}`}
                 >
                   <span>{filter.label}</span>
-                  <span className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[9px] font-black transition-colors ${filterStatus === filter.id ? filter.badgeColor : 'bg-gray-100 text-gray-400'}`}>
+                  <span className={`flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-[8px] font-black transition-colors ${filterStatus === filter.id ? filter.badgeColor : 'bg-gray-100 text-gray-400'}`}>
                     {filter.count}
                   </span>
                 </button>
               ))}
             </div>
 
-            <div className="bg-white p-1.5 rounded-2xl flex shrink-0 border-2 border-gray-100 shadow-inner ml-2">
+            <div className="bg-white p-1 rounded-xl flex shrink-0 border-2 border-gray-100 shadow-inner">
               {[
                 { id: 'not_frozen', label: 'Ativas', icon: <Flame size={12} />, activeColor: 'bg-black text-white' },
                 { id: 'frozen', label: 'Congeladas', icon: <Snowflake size={12} />, activeColor: 'bg-blue-600 text-white' }
@@ -478,7 +516,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                 <button 
                   key={f.id}
                   onClick={() => setFilterFrozen(f.id as any)}
-                  className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center space-x-2 ${filterFrozen === f.id ? f.activeColor + ' shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                  className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center space-x-1.5 ${filterFrozen === f.id ? f.activeColor + ' shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                 >
                   {f.icon}
                   <span>{f.label}</span>
@@ -486,12 +524,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
               ))}
             </div>
 
-            <div className={`relative w-full md:w-80 group transition-all duration-300 ${isSearching ? 'scale-105' : ''}`}>
-              <SearchIcon className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#e31e24]' : 'text-gray-400 group-focus-within:text-[#e31e24]'}`} size={18} />
+            <div className={`relative w-full md:w-72 group transition-all duration-300 ${isSearching ? 'scale-105' : ''}`}>
+              <SearchIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#e31e24]' : 'text-gray-400 group-focus-within:text-[#e31e24]'}`} size={16} />
               <input 
                 type="text" 
                 placeholder="Vaga, Cargo, Gestor, Nomes..."
-                className={`w-full pl-12 pr-12 py-3 rounded-xl border-2 outline-none font-bold text-xs uppercase tracking-wider transition-all shadow-sm
+                className={`w-full pl-10 pr-10 py-2 rounded-xl border-2 outline-none font-bold text-xs uppercase tracking-wider transition-all shadow-sm
                   ${isSearching 
                     ? 'border-[#e31e24] bg-red-50/30 ring-4 ring-red-500/5' 
                     : 'border-gray-200 bg-gray-50/50 focus:border-[#e31e24] focus:bg-white focus:ring-4 focus:ring-red-500/5'}`}
@@ -501,146 +539,184 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
               {isSearching && (
                 <button 
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 hover:text-red-700 transition-colors p-1 hover:bg-red-100 rounded-full"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 hover:text-red-700 transition-colors p-1 hover:bg-red-100 rounded-full"
                   title="Limpar Pesquisa"
                 >
-                  <X size={16} strokeWidth={3} />
+                  <X size={14} strokeWidth={3} />
                 </button>
               )}
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             {counts.frozen > 0 && (
-              <div className="bg-blue-50 border-2 border-blue-200 px-6 py-3 rounded-2xl flex items-center space-x-3 shadow-sm animate-pulse">
-                <Snowflake size={20} className="text-blue-600" />
+              <div className="bg-blue-50 border border-blue-200 px-4 py-2 rounded-xl flex items-center space-x-2.5 shadow-sm animate-pulse">
+                <Snowflake size={16} className="text-blue-600" />
                 <div>
-                  <p className="text-[9px] font-black text-blue-400 uppercase leading-none">Vagas Congeladas</p>
-                  <p className="text-xl font-black text-blue-700 leading-none">{counts.frozen}</p>
+                  <p className="text-[8px] font-black text-blue-400 uppercase leading-none">Vagas Congeladas</p>
+                  <p className="text-base font-black text-blue-700 leading-none mt-0.5">{counts.frozen}</p>
                 </div>
               </div>
             )}
             <button 
               onClick={() => setIsNewVagaModalOpen(true)}
-              className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-8 py-3.5 rounded-xl flex items-center justify-center font-black text-xs tracking-widest uppercase shadow-[0_10px_20px_-5px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-3 w-full lg:w-auto"
+              className="bg-[#e31e24] hover:bg-[#c0191e] text-white px-5 py-2.5 rounded-xl flex items-center justify-center font-black text-xs tracking-wider uppercase shadow-[0_6px_15px_-3px_rgba(227,30,36,0.3)] transform transition active:scale-95 space-x-2 w-full lg:w-auto"
             >
-              <Plus size={20} strokeWidth={3} />
+              <Plus size={16} strokeWidth={3} />
               <span>Abrir Nova Vaga</span>
             </button>
           </div>
         </div>
 
-        <div className="space-y-5">
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <MapPin size={14} className="text-[#e31e24]" />
-                <span>Unidades Operacionais ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+        {/* Barra de controle com linha fina vermelha (Recolher) / verde (Expandir) e contador */}
+        <div className="pt-1 flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-1.5 text-gray-500 shrink-0">
+            <Hash size={13} className="text-gray-400" />
+            <span className="text-[9px] font-black uppercase tracking-wider">
+              Vagas Filtradas: <span className="text-black text-xs font-black ml-0.5">{processedVagas.length}</span>
+            </span>
+          </div>
+
+          <div className="flex-1 relative flex items-center justify-center">
+            <div className={`w-full border-t transition-colors ${isCoinsExpanded ? 'border-red-400' : 'border-[#41a900]'}`}></div>
+            <button
+              onClick={() => setIsCoinsExpanded(!isCoinsExpanded)}
+              className={`absolute px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center space-x-1 transition-all shadow-sm ${
+                isCoinsExpanded 
+                  ? 'bg-red-50 text-red-600 border border-red-400 hover:bg-red-100 hover:border-red-600' 
+                  : 'bg-emerald-50 text-[#41a900] border border-[#41a900] hover:bg-emerald-100'
+              }`}
+              title={isCoinsExpanded ? 'Recolher filtros de Unidades, Responsáveis e Cargos' : 'Expandir filtros'}
+            >
+              <span>{isCoinsExpanded ? 'Recolher' : 'Expandir'}</span>
+              {isCoinsExpanded ? <ChevronUp size={11} strokeWidth={2.5} /> : <ChevronDown size={11} strokeWidth={2.5} />}
+            </button>
+          </div>
+
+          {(selectedUnits.length > 0 || selectedCreators.length > 0 || selectedCargos.length > 0) && (
+            <button
+              onClick={() => {
+                setSelectedUnits([]);
+                setSelectedCreators([]);
+                setSelectedCargos([]);
+              }}
+              className="text-[8px] font-black uppercase text-red-600 hover:underline shrink-0"
+            >
+              Limpar Filtros ({selectedUnits.length + selectedCreators.length + selectedCargos.length})
+            </button>
+          )}
+        </div>
+
+        {isCoinsExpanded && (
+          <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+            {/* Unidades */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                  <MapPin size={12} className="text-[#e31e24]" />
+                  <span>Unidades Operacionais ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+                </div>
+                {selectedUnits.length > 0 && (
+                  <button 
+                    onClick={() => setSelectedUnits([])}
+                    className="text-[8px] font-black uppercase text-red-600 hover:underline"
+                  >
+                    Limpar Unidades
+                  </button>
+                )}
               </div>
-              {selectedUnits.length > 0 && (
-                <button 
-                  onClick={() => setSelectedUnits([])}
-                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
-                >
-                  Limpar Unidades
-                </button>
-              )}
-            </div>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {unitStats.map(([unit, count]) => (
                   <button
                     key={unit}
                     onClick={() => toggleUnit(unit)}
-                    className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                    className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tight transition-all border whitespace-nowrap flex items-center space-x-1.5 ${
                       selectedUnits.includes(unit) 
-                      ? 'bg-[#41a900] border-black text-black shadow-md' 
-                      : 'bg-white border-gray-100 text-gray-500 hover:border-[#41a900]'
+                      ? 'bg-[#41a900] border-black text-black shadow-sm' 
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-[#41a900]'
                     }`}
                   >
                     <span>{unit}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedUnits.includes(unit) ? 'bg-black text-[#41a900]' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className={`px-1 py-0.2 rounded text-[7px] font-black ${selectedUnits.includes(unit) ? 'bg-black text-[#41a900]' : 'bg-gray-100 text-gray-500'}`}>
                       {count}
                     </span>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <UserCircle size={14} className="text-[#41a900]" />
-                <span>Responsáveis pela Abertura ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+            {/* Responsáveis */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                  <UserCircle size={12} className="text-[#41a900]" />
+                  <span>Responsáveis pela Abertura ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+                </div>
+                {selectedCreators.length > 0 && (
+                  <button 
+                    onClick={() => setSelectedCreators([])}
+                    className="text-[8px] font-black uppercase text-red-600 hover:underline"
+                  >
+                    Limpar Criadores
+                  </button>
+                )}
               </div>
-              {selectedCreators.length > 0 && (
-                <button 
-                  onClick={() => setSelectedCreators([])}
-                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
-                >
-                  Limpar Criadores
-                </button>
-              )}
-            </div>
-            <div className="flex items-center space-x-3 overflow-x-auto pb-4 scrollbar-hide">
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {creatorStats.map(([creator, count]) => (
                   <button
                     key={creator}
                     onClick={() => toggleCreator(creator)}
-                    className={`flex items-center space-x-3 px-4 py-2.5 rounded-full border-2 transition-all group shrink-0 ${
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border transition-all group shrink-0 ${
                       selectedCreators.includes(creator)
-                      ? 'bg-black border-black text-white shadow-xl scale-105'
-                      : 'bg-white border-gray-100 text-gray-500 hover:border-black'
+                      ? 'bg-black border-black text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-black'
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] uppercase transition-colors ${
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[8px] uppercase transition-colors ${
                       selectedCreators.includes(creator) ? 'bg-[#41a900] text-black' : 'bg-gray-100 text-gray-400 group-hover:bg-black group-hover:text-[#41a900]'
                     }`}>
                       {creator.substring(0, 2)}
                     </div>
-                    <div className="text-left">
-                      <p className="text-[10px] font-black uppercase leading-tight">{creator}</p>
-                      <p className={`text-[8px] font-bold uppercase mt-0.5 ${selectedCreators.includes(creator) ? 'text-[#41a900]' : 'text-[#e31e24]'}`}>
-                        {count} Vagas {filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'no Total' : filterFrozen === 'frozen' ? 'Congeladas' : 'Ativas'}
-                      </p>
+                    <div className="text-left flex items-center space-x-1">
+                      <p className="text-[9px] font-black uppercase leading-none">{creator}</p>
+                      <span className={`px-1 py-0.2 rounded text-[7px] font-black ${selectedCreators.includes(creator) ? 'bg-[#41a900] text-black' : 'bg-gray-100 text-gray-500'}`}>
+                        {count}
+                      </span>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <Users size={14} className="text-blue-500" />
-                <span>Cargos ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+            {/* Cargos */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                  <Users size={12} className="text-blue-500" />
+                  <span>Cargos ({filterStatus === 'closed' ? 'Finalizadas' : filterStatus === 'all' ? 'Todas' : filterFrozen === 'frozen' ? 'Vagas Congeladas' : 'Vagas Ativas'}):</span>
+                </div>
+                {selectedCargos.length > 0 && (
+                  <button 
+                    onClick={() => setSelectedCargos([])}
+                    className="text-[8px] font-black uppercase text-red-600 hover:underline"
+                  >
+                    Limpar Cargos
+                  </button>
+                )}
               </div>
-              {selectedCargos.length > 0 && (
-                <button 
-                  onClick={() => setSelectedCargos([])}
-                  className="text-[9px] font-black uppercase text-red-600 hover:underline"
-                >
-                  Limpar Cargos
-                </button>
-              )}
-            </div>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-4 scrollbar-hide">
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {cargoStats.map(([cargo, count]) => (
                   <button
                     key={cargo}
                     onClick={() => toggleCargo(cargo)}
-                    className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border-2 whitespace-nowrap flex items-center space-x-2 ${
+                    className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tight transition-all border whitespace-nowrap flex items-center space-x-1.5 ${
                       selectedCargos.includes(cargo) 
-                      ? 'bg-blue-500 border-black text-white shadow-md' 
-                      : 'bg-white border-gray-100 text-gray-500 hover:border-blue-500'
+                      ? 'bg-blue-600 border-black text-white shadow-sm' 
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-blue-500'
                     }`}
                   >
                     <span>{cargo}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${selectedCargos.includes(cargo) ? 'bg-black text-blue-500' : 'bg-gray-100 text-gray-400'}`}>
+                    <span className={`px-1 py-0.2 rounded text-[7px] font-black ${selectedCargos.includes(cargo) ? 'bg-black text-blue-400' : 'bg-gray-100 text-gray-500'}`}>
                       {count}
                     </span>
                   </button>
@@ -648,77 +724,57 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
               </div>
             </div>
           </div>
-
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-gray-500">
-              <Hash size={14} />
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                Vagas Filtradas: <span className="text-black text-xs ml-1">{processedVagas.length}</span>
-              </span>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      <main className="flex-1 p-8">
-        <div className="flex justify-end mb-3">
-          <button 
-            onClick={handleExport}
-            disabled={processedVagas.length === 0}
-            className="flex items-center space-x-2 bg-white hover:bg-green-50 text-green-700 px-4 py-2 rounded-lg border-2 border-green-100 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 disabled:opacity-30"
-          >
-            <Download size={16} strokeWidth={3} />
-            <span>Exportar Excel</span>
-          </button>
-        </div>
-        
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <main className="flex-1 px-6 py-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-96 space-y-4">
-              <div className="animate-spin rounded-full h-14 w-14 border-b-2 border-[#e31e24]"></div>
+            <div className="flex flex-col items-center justify-center h-80 space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#e31e24]"></div>
               <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">Acessando base de dados...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead>
-                  <tr className="bg-[#fafafa]">
-                    <th onClick={() => handleSort('VAGA')} className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+            <div className="overflow-x-auto max-h-[calc(100vh-250px)] overflow-y-auto relative">
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20 bg-[#fafafa]">
+                  <tr>
+                    <th onClick={() => handleSort('VAGA')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Vaga {renderSortIcon('VAGA')}</div>
                     </th>
-                    <th onClick={() => handleSort('created_at')} className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                    <th onClick={() => handleSort('created_at')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Criação {renderSortIcon('created_at')}</div>
                     </th>
-                    <th onClick={() => handleSort('UNIDADE')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                    <th onClick={() => handleSort('UNIDADE')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Unidade / Setor {renderSortIcon('UNIDADE')}</div>
                     </th>
-                    <th onClick={() => handleSort('CARGO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                    <th onClick={() => handleSort('CARGO')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Cargo / Responsáveis {renderSortIcon('CARGO')}</div>
                     </th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                    <th className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider border-b-2 border-gray-200">
                       Aberto Por
                     </th>
-                    <th className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                    <th className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider border-b-2 border-gray-200">
                       Substituído / Contratado
                     </th>
-                    <th onClick={() => handleSort('ABERTURA')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                    <th onClick={() => handleSort('ABERTURA')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Abertura / Dias {renderSortIcon('ABERTURA')}</div>
                     </th>
                     {(filterStatus === 'closed' || filterStatus === 'all') && (
-                      <th onClick={() => handleSort('FECHAMENTO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                      <th onClick={() => handleSort('FECHAMENTO')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                         <div className="flex items-center">Fechamento {renderSortIcon('FECHAMENTO')}</div>
                       </th>
                     )}
-                    <th onClick={() => handleSort('TIPO')} className="px-8 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] cursor-pointer hover:bg-gray-100/50 transition-colors">
+                    <th onClick={() => handleSort('TIPO')} className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-left text-[9px] font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors border-b-2 border-gray-200">
                       <div className="flex items-center">Status / Tipo {renderSortIcon('TIPO')}</div>
                     </th>
-                    <th className="px-8 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Ações</th>
+                    <th className="sticky top-0 bg-[#fafafa] z-20 px-4 py-3 text-right text-[9px] font-black text-gray-500 uppercase tracking-wider border-b-2 border-gray-200">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody className="bg-white">
                   {processedVagas.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-8 py-24 text-center">
+                      <td colSpan={11} className="px-6 py-20 text-center">
                         <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                            <AlertCircle size={48} />
                            <p className="font-bold uppercase tracking-widest text-xs">
@@ -738,108 +794,108 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                           className={`cursor-pointer transition-colors group ${isFrozen ? 'bg-blue-50/60 hover:bg-blue-100/80 border-l-4 border-blue-500' : 'hover:bg-gray-50/80'}`}
                           onClick={() => setSelectedVagaForDetails(vaga)}
                         >
-                          <td className="px-6 py-6">
-                            <span className={`px-3 py-1.5 rounded-lg text-xs font-black shadow-sm border ${isFrozen ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-900 border-gray-200'}`}>
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <span className={`px-2.5 py-1 rounded-md text-[11px] font-black shadow-sm border ${isFrozen ? 'bg-blue-600 text-white border-blue-700' : 'bg-gray-100 text-gray-900 border-gray-200'}`}>
                               {vaga.VAGA || '---'}
                             </span>
                           </td>
-                          <td className="px-6 py-6">
+                          <td className="px-4 py-3 border-b border-gray-100">
                              <div className="flex flex-col">
                                  <span className="text-xs font-black text-gray-900">{new Date(vaga.created_at).toLocaleDateString('pt-BR')}</span>
                                  <span className="text-[10px] font-bold text-gray-400">{new Date(vaga.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
                              </div>
                           </td>
-                          <td className="px-8 py-6">
-                            <div className="text-sm font-black text-black uppercase tracking-tighter">{vaga.UNIDADE}</div>
-                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className="text-xs font-black text-black uppercase tracking-tight">{vaga.UNIDADE}</div>
+                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">{vaga.SETOR}</div>
                           </td>
-                          <td className="px-8 py-6">
-                            <div className={`text-sm font-bold uppercase italic ${isFrozen ? 'text-blue-700' : 'text-[#e31e24]'}`}>{vaga.CARGO}</div>
-                            <div className="text-[10px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className={`text-xs font-bold uppercase italic ${isFrozen ? 'text-blue-700' : 'text-[#e31e24]'}`}>{vaga.CARGO}</div>
+                            <div className="text-[9px] text-gray-500 font-black uppercase">GEST: {vaga.GESTOR}</div>
                             <div className="text-[9px] text-gray-400 font-bold uppercase italic">GER: {vaga.GERENTE || '---'}</div>
                           </td>
-                          <td className="px-8 py-6">
-                            <div className="text-[11px] font-black text-gray-900 uppercase">
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className="text-[10px] font-black text-gray-900 uppercase">
                               {getVagaCreator(vaga)}
                             </div>
                           </td>
-                          <td className="px-8 py-6">
-                            <div className="space-y-1">
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className="space-y-0.5">
                               {vaga.NOME_SUBSTITUIDO && (
-                                <div className="flex items-center space-x-2 text-[10px] font-bold text-gray-600 uppercase">
-                                  <UserMinus size={12} className="text-gray-400" />
+                                <div className="flex items-center space-x-1.5 text-[9px] font-bold text-gray-600 uppercase">
+                                  <UserMinus size={11} className="text-gray-400" />
                                   <span>Subst: <span className="text-black font-black">{vaga.NOME_SUBSTITUIDO}</span></span>
                                 </div>
                               )}
                               {vaga.NOME_SUBSTITUICAO && (
-                                <div className="flex items-center space-x-2 text-[10px] font-bold text-green-700 uppercase">
-                                  <UserPlus size={12} className="text-green-500" />
+                                <div className="flex items-center space-x-1.5 text-[9px] font-bold text-green-700 uppercase">
+                                  <UserPlus size={11} className="text-green-500" />
                                   <span>Contr: <span className="text-green-900 font-black">{vaga.NOME_SUBSTITUICAO}</span></span>
                                 </div>
                               )}
                               {!vaga.NOME_SUBSTITUIDO && !vaga.NOME_SUBSTITUICAO && (
-                                <span className="text-[10px] text-gray-300 italic">Nenhum registro</span>
+                                <span className="text-[9px] text-gray-300 italic">Nenhum registro</span>
                               )}
                             </div>
                           </td>
-                          <td className="px-8 py-6">
-                            <div className="flex items-center space-x-2 text-gray-700">
-                              <Clock size={14} className="text-gray-300" />
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className="flex items-center space-x-1.5 text-gray-700">
+                              <Clock size={12} className="text-gray-300" />
                               <span className="text-xs font-bold">{new Date(vaga.ABERTURA).toLocaleDateString('pt-BR')}</span>
                             </div>
-                            <div className={`text-[10px] font-black mt-1 ${calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO) > 30 ? 'text-orange-500' : 'text-gray-400'}`}>
+                            <div className={`text-[9px] font-black mt-0.5 ${calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO) > 30 ? 'text-orange-500' : 'text-gray-400'}`}>
                               {calculateDaysOpen(vaga.ABERTURA, vaga.FECHAMENTO)} DIAS
                             </div>
                           </td>
                           {(filterStatus === 'closed' || filterStatus === 'all') && (
-                            <td className="px-8 py-6">
+                            <td className="px-4 py-3 border-b border-gray-100">
                               {vaga.FECHAMENTO ? (
-                                <div className="flex items-center space-x-2 text-green-700">
-                                  <CheckCircle size={14} className="text-green-400" />
+                                <div className="flex items-center space-x-1.5 text-green-700">
+                                  <CheckCircle size={12} className="text-green-400" />
                                   <span className="text-xs font-bold">{new Date(vaga.FECHAMENTO).toLocaleDateString('pt-BR')}</span>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-gray-300 italic font-bold">ATIVA</span>
+                                <span className="text-[9px] text-gray-300 italic font-bold">ATIVA</span>
                               )}
                             </td>
                           )}
-                          <td className="px-8 py-6">
-                            <div className="flex flex-col space-y-1.5">
+                          <td className="px-4 py-3 border-b border-gray-100">
+                            <div className="flex flex-col space-y-1">
                               {vaga.FECHAMENTO ? (
-                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-black uppercase tracking-widest border border-green-100 w-fit">
-                                  <CheckCircle size={10} />
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-green-50 text-green-700 text-[9px] font-black uppercase tracking-wider border border-green-100 w-fit">
+                                  <CheckCircle size={9} />
                                   <span>Finalizada</span>
                                 </span>
                               ) : isFrozen ? (
-                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase tracking-widest border border-blue-200 w-fit">
-                                  <Snowflake size={10} />
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-wider border border-blue-200 w-fit">
+                                  <Snowflake size={9} />
                                   <span>Congelada</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black uppercase tracking-widest border border-orange-100 w-fit">
-                                  <AlertCircle size={10} />
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-orange-50 text-orange-700 text-[9px] font-black uppercase tracking-wider border border-orange-100 w-fit">
+                                  <AlertCircle size={9} />
                                   <span>Em Aberto</span>
                                 </span>
                               )}
-                              <span className="text-[9px] font-black text-gray-400 uppercase ml-1 italic">{vaga.TIPO}</span>
+                              <span className="text-[8px] font-black text-gray-400 uppercase ml-0.5 italic">{vaga.TIPO}</span>
                             </div>
                           </td>
-                          <td className="px-8 py-6 text-right">
-                            <div className="flex items-center justify-end space-x-2">
+                          <td className="px-4 py-3 border-b border-gray-100 text-right">
+                            <div className="flex items-center justify-end space-x-1.5">
                               {!vaga.FECHAMENTO && !hasCreator && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setVagaToAssignCreator(vaga);
                                   }}
-                                  className="p-2 bg-[#41a900] text-black rounded-xl hover:bg-black hover:text-[#41a900] transition-all animate-pulse shadow-lg border border-black/10"
+                                  className="p-1.5 bg-[#41a900] text-black rounded-lg hover:bg-black hover:text-[#41a900] transition-all animate-pulse shadow border border-black/10"
                                   title="Assumir Vaga como Criador"
                                 >
-                                  <UserPlus size={18} strokeWidth={3} />
+                                  <UserPlus size={15} strokeWidth={2.5} />
                                 </button>
                               )}
-                              <button className="p-2 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
-                                <Eye size={18} />
+                              <button className="p-1.5 text-gray-300 group-hover:text-black transition-colors" title="Visualizar Detalhes">
+                                <Eye size={16} />
                               </button>
                               {!vaga.FECHAMENTO && !vaga.CONGELADA && (
                                 <button
@@ -847,14 +903,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onNavigateToUsers
                                     e.stopPropagation();
                                     setSelectedVagaForClosing(vaga);
                                   }}
-                                  className="bg-black hover:bg-[#e31e24] text-white px-5 py-2 rounded-lg transition-all shadow-md text-[10px] font-black uppercase tracking-widest active:scale-95"
+                                  className="bg-black hover:bg-[#e31e24] text-white px-3.5 py-1.5 rounded-lg transition-all shadow text-[9px] font-black uppercase tracking-wider active:scale-95"
                                 >
                                   Finalizar
                                 </button>
                               )}
                               {isFrozen && (
-                                <div className="p-2 text-blue-400 cursor-not-allowed" title="Vaga Congelada - Descongele para finalizar">
-                                  <Lock size={18} />
+                                <div className="p-1.5 text-blue-400 cursor-not-allowed" title="Vaga Congelada - Descongele para finalizar">
+                                  <Lock size={16} />
                                 </div>
                               )}
                             </div>
